@@ -1,21 +1,24 @@
-import { Brain } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const Footer = () => {
   return (
-    <footer className="border-t border-border/50 py-12">
-      <div className="container px-6">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/30">
-              <Brain className="w-4 h-4 text-primary" />
-            </div>
-            <span className="font-bold text-gradient">InterviewAI</span>
+    <footer className="border-t border-border/50 bg-background/50 backdrop-blur-sm py-16">
+      <div className="container mx-auto px-6">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6 md:gap-4">
+          <Link to="/home" className="flex items-center gap-2">
+            <span className="text-xl font-bold tracking-tight text-gradient">Smart Interview</span>
           </Link>
+          <div className="flex items-center gap-6 text-sm text-muted-foreground">
+            <Link to="/home" className="hover:text-primary transition-colors">Home</Link>
+            <Link to="/learning" className="hover:text-primary transition-colors">Learning</Link>
+            <Link to="/interview" className="hover:text-primary transition-colors">Interview</Link>
+          </div>
+        </div>
+        <div className="mt-8 pt-8 border-t border-border/50 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
-            AI-Powered Interview Preparation & Evaluation System
+            Smart Interview Preparation & Evaluation System
           </p>
-          <p className="text-xs text-muted-foreground">© 2026 InterviewAI. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} InterviewAI. All rights reserved.</p>
         </div>
       </div>
     </footer>

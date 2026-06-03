@@ -1,22 +1,16 @@
-# Welcome to your Lovable project
+# Welcome to Interview Ace
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+**Project Name**: Interview Ace
 
 ## How can I edit this code?
 
 There are several ways of editing your application.
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
 **Use your preferred IDE**
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Clone this repo, make your changes locally, and push updates as usual.
 
 The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
@@ -62,12 +56,18 @@ This project is built with:
 
 ## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+Build and deploy with your preferred hosting platform (for example Vercel, Netlify, Firebase Hosting, or any static hosting provider).
 
-## Can I connect a custom domain to my Lovable project?
+## Local run
 
-Yes, you can!
+```sh
+cd interview-ace
+npm install
+npm run dev -- --port 4173
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+If you use the interview page features, allow microphone and camera permissions in the browser.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## Can I connect a custom domain to my Interview Ace project?
+
+Yes. Configure your domain in the DNS settings of your hosting provider and map it to your deployed site.
