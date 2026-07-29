@@ -5,20 +5,32 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { CheckCircle, XCircle, AlertCircle, ArrowRight, Download } from "lucide-react";
+import { CheckCircle, XCircle, AlertCircle, ArrowRight, Download, Camera, Sparkles } from "lucide-react";
 import type { InterviewResult } from "@/data/questions";
+import { getVideoRecording } from "@/lib/indexedDb";
 
 interface ResultsPageState {
   category: string;
   results: InterviewResult[];
   totalQuestions: number;
   averageScore: number;
+  recordingId?: string;
+  cvMetrics?: {
+    eyeContact: number;
+    posture: number;
+    calmness: number;
+    confidence: number;
+  };
+  strengths?: string[];
+  weaknesses?: string[];
+  feedbackSuggestions?: string[];
 }
 
 const Results = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [state, setState] = useState<ResultsPageState | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const passedState = location.state as ResultsPageState | null;
@@ -30,6 +42,20 @@ const Results = () => {
     }
   }, [location, navigate]);
 
+  useEffect(() => {
+    const recordingId = state?.recordingId;
+    if (recordingId) {
+      getVideoRecording(recordingId).then((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          setVideoUrl(url);
+        }
+      }).catch((err) => {
+        console.error("Failed to load video recording from IDB", err);
+      });
+    }
+  }, [state?.recordingId]);
+
   if (!state) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -40,7 +66,17 @@ const Results = () => {
     );
   }
 
-  const { category, results, totalQuestions, averageScore } = state;
+  const {
+    category,
+    results,
+    totalQuestions,
+    averageScore,
+    recordingId,
+    cvMetrics,
+    strengths,
+    weaknesses,
+    feedbackSuggestions
+  } = state;
 
   const passedCount = results.filter((r) => r.finalScore >= 70).length;
   const partialCount = results.filter((r) => r.finalScore >= 50 && r.finalScore < 70).length;
@@ -133,6 +169,127 @@ const Results = () => {
               <p className="text-sm font-semibold">{new Date().toLocaleDateString()}</p>
             </motion.div>
           </div>
+
+          {/* Video Recording & body language HUD */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 sm:mb-12 items-start text-left">
+            {/* Left 2 columns: Video Player if available */}
+            {videoUrl && (
+              <div className="lg:col-span-2 glass rounded-lg sm:rounded-xl p-5 border border-border/20">
+                <h2 className="text-sm sm:text-base font-bold mb-3 flex items-center gap-1.5">
+                  <Camera className="w-4.5 h-4.5 text-primary" /> Interview Video Recording
+                </h2>
+                <div className="aspect-video bg-black rounded-lg overflow-hidden border border-border/10 relative">
+                  <video src={videoUrl} controls className="w-full h-full" />
+                </div>
+              </div>
+            )}
+
+            {/* Right column: CV Heuristic dashboard */}
+            {cvMetrics && (
+              <div className={`glass rounded-lg sm:rounded-xl p-5 border border-border/20 relative overflow-hidden ${videoUrl ? "lg:col-span-1" : "lg:col-span-3 grid grid-cols-2 gap-4"}`}>
+                <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
+                
+                <h2 className="text-sm sm:text-base font-bold mb-4 flex items-center gap-1.5 col-span-2">
+                  <Sparkles className="w-4 h-4 text-primary animate-pulse" /> Body Language HUD
+                </h2>
+
+                <div className="space-y-3 col-span-2">
+                  <div>
+                    <div className="flex justify-between text-xs font-semibold mb-1">
+                      <span>Eye Contact</span>
+                      <span className="text-primary font-bold">{cvMetrics.eyeContact}%</span>
+                    </div>
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full bg-primary" style={{ width: `${cvMetrics.eyeContact}%` }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs font-semibold mb-1">
+                      <span>Posture Stability</span>
+                      <span className="text-primary font-bold">{cvMetrics.posture}%</span>
+                    </div>
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full bg-primary" style={{ width: `${cvMetrics.posture}%` }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs font-semibold mb-1">
+                      <span>Body Calmness</span>
+                      <span className="text-primary font-bold">{cvMetrics.calmness}%</span>
+                    </div>
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full bg-primary" style={{ width: `${cvMetrics.calmness}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-border/20 flex justify-between items-center text-xs font-semibold">
+                    <span className="text-muted-foreground">Confidence Score:</span>
+                    <Badge variant="secondary" className="font-mono text-[10px] px-2 py-0.5">
+                      {cvMetrics.confidence}%
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Strengths, Weaknesses, suggestions lists */}
+          {(strengths?.length || weaknesses?.length || feedbackSuggestions?.length) ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 sm:mb-12 text-left">
+              <div>
+                <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  ✓ Core Strengths
+                </h4>
+                <ul className="space-y-2">
+                  {strengths && strengths.length > 0 ? (
+                    strengths.map((str, idx) => (
+                      <li key={idx} className="text-xs sm:text-sm text-slate-300 bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-2.5">
+                        {str}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-xs text-muted-foreground italic">No specific strengths flagged.</li>
+                  )}
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  ✗ Areas for Improvement
+                </h4>
+                <ul className="space-y-2">
+                  {weaknesses && weaknesses.length > 0 ? (
+                    weaknesses.map((weak, idx) => (
+                      <li key={idx} className="text-xs sm:text-sm text-slate-300 bg-red-500/5 border border-red-500/10 rounded-lg p-2.5">
+                        {weak}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-xs text-muted-foreground italic">No major vulnerabilities identified.</li>
+                  )}
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold text-amber-405 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  💡 Action Suggestions
+                </h4>
+                <ul className="space-y-2">
+                  {feedbackSuggestions && feedbackSuggestions.length > 0 ? (
+                    feedbackSuggestions.map((sug, idx) => (
+                      <li key={idx} className="text-xs sm:text-sm text-slate-300 bg-amber-500/5 border border-amber-500/10 rounded-lg p-2.5">
+                        {sug}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-xs text-muted-foreground italic">Maintain current pacing.</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+          ) : null}
 
           {/* Detailed Results */}
           <div className="space-y-4 sm:space-y-6 mb-8 sm:mb-12">

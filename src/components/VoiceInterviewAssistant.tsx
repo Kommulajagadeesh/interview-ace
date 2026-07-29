@@ -22,11 +22,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { textToSpeechHuggingFace } from "@/lib/huggingface";
 
 type VoiceInterviewAssistantProps = {
   questionText: string;
   answer: string;
-  onAnswerChange: (value: string) => void;
+  onAnswerChange: (value: any) => void;
   enabled: boolean;
   autoSpeak: boolean;
   setAutoSpeak: (val: boolean) => void;
@@ -34,6 +35,11 @@ type VoiceInterviewAssistantProps = {
   setAutoListen: (val: boolean) => void;
   isMuted: boolean;
   setIsMuted: (val: boolean) => void;
+  onSpeakingChange?: (speaking: boolean) => void;
+  onListeningChange?: (listening: boolean) => void;
+  onMicVolumeChange?: (volume: number) => void;
+  onTranscriptChange?: (transcript: string) => void;
+  onPauseSubmit?: () => void;
 };
 
 const VoiceInterviewAssistant = ({
@@ -47,9 +53,22 @@ const VoiceInterviewAssistant = ({
   setAutoListen,
   isMuted,
   setIsMuted,
+  onSpeakingChange,
+  onListeningChange,
+  onMicVolumeChange,
+  onTranscriptChange,
+  onPauseSubmit,
 }: VoiceInterviewAssistantProps) => {
-  const [listening, setListening] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
+  const [listening, setListeningRaw] = useState(false);
+  const setListening = (val: boolean) => {
+    setListeningRaw(val);
+    onListeningChange?.(val);
+  };
+  const [speaking, setSpeakingRaw] = useState(false);
+  const setSpeaking = (val: boolean) => {
+    setSpeakingRaw(val);
+    onSpeakingChange?.(val);
+  };
   const [speechPaused, setSpeechPaused] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -66,12 +85,19 @@ const VoiceInterviewAssistant = ({
   // Speech Recognition ref
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+  const silenceTimerRef = useRef<any>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const isHfVoiceActive = useRef<boolean>(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const microphoneRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const [micVolume, setMicVolume] = useState<number>(0);
+  const [micVolume, setMicVolumeRaw] = useState<number>(0);
+  const setMicVolume = (val: number) => {
+    setMicVolumeRaw(val);
+    onMicVolumeChange?.(val);
+  };
 
   // Initialize Speech Synthesis Voices
   useEffect(() => {
@@ -82,11 +108,16 @@ const VoiceInterviewAssistant = ({
       const englishOrSupported = allVoices.filter(v => v.lang.startsWith("en-"));
       setVoices(englishOrSupported.length > 0 ? englishOrSupported : allVoices);
       
-      // Select default natural voice if possible
+      // Select default female voice if possible (to match AI Olivia's female persona)
       const defaultVoice =
+        allVoices.find(v => v.lang.startsWith("en-US") && v.name.toLowerCase().includes("zira")) ||
+        allVoices.find(v => v.lang.startsWith("en-US") && v.name.toLowerCase().includes("samantha")) ||
+        allVoices.find(v => v.lang.startsWith("en-US") && v.name.toLowerCase().includes("hazel")) ||
+        allVoices.find(v => v.lang.startsWith("en-") && v.name.toLowerCase().includes("female")) ||
+        allVoices.find(v => v.lang.startsWith("en-US") && v.name.toLowerCase().includes("google")) ||
         allVoices.find(v => v.lang.startsWith("en-US") && v.name.includes("Natural")) ||
-        allVoices.find(v => v.lang.startsWith("en-") && v.name.includes("Google")) ||
         allVoices.find(v => v.lang.startsWith("en-US")) ||
+        allVoices.find(v => v.lang.startsWith("en-")) ||
         allVoices[0];
       
       if (defaultVoice && !selectedVoiceName) {
@@ -156,23 +187,56 @@ const VoiceInterviewAssistant = ({
         }
       }
 
+      // Reset auto-submit silence timer on any speech input
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+
       if (interim) {
         setTranscript(interim);
+        onTranscriptChange?.(interim);
       }
 
       if (final) {
         setTranscript("");
+        onTranscriptChange?.("");
         // Append spoken text to the answer
         onAnswerChange((prev: string) => {
           const trimmed = prev.trim();
-          return trimmed ? `${trimmed} ${final.trim()}` : final.trim();
+          const nextAnswer = trimmed ? `${trimmed} ${final.trim()}` : final.trim();
+          
+          // Auto-submit after 5.0 seconds of silence if text is non-empty and at least 10 chars
+          if (nextAnswer.trim().length > 10) {
+            silenceTimerRef.current = setTimeout(() => {
+              onPauseSubmit?.();
+            }, 5000);
+          }
+          
+          return nextAnswer;
         });
       }
     };
 
     rec.onend = () => {
       setListening(false);
+      onTranscriptChange?.("");
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
       stopAudioAnalysis();
+
+      // Auto-restart listening if autoListen is enabled, we are not speaking, and it is enabled
+      if (autoListen && enabled && !isMuted) {
+        setTimeout(() => {
+          if (autoListen && enabled && !isMuted && !window.speechSynthesis?.speaking && !isHfVoiceActive.current) {
+            try {
+              recognitionRef.current?.start();
+              setListening(true);
+              startAudioAnalysis();
+            } catch (e) {}
+          }
+        }, 300);
+      }
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -258,50 +322,124 @@ const VoiceInterviewAssistant = ({
   };
 
   // Speak function
-  const speak = (text: string) => {
-    if (!window.speechSynthesis || isMuted) return;
+  const speak = async (text: string) => {
+    if (isMuted) return;
+    setListening(false);
+    try {
+      recognitionRef.current?.stop();
+    } catch {}
+
+    const cleanText = text.replace(/[*_#`[\]()]/g, "");
+
+    // Reset HF audio if active
+    isHfVoiceActive.current = false;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    // Try Hugging Face TTS
+    const hfAudioUrl = await textToSpeechHuggingFace(cleanText);
+    if (hfAudioUrl) {
+      try {
+        const audio = new Audio(hfAudioUrl);
+        audioRef.current = audio;
+        audio.playbackRate = speechRate;
+
+        audio.onplay = () => {
+          setSpeaking(true);
+          setSpeechPaused(false);
+          isHfVoiceActive.current = true;
+        };
+
+        audio.onended = () => {
+          setSpeaking(false);
+          setSpeechPaused(false);
+          isHfVoiceActive.current = false;
+          if (autoListen && recognitionRef.current) {
+            startListening();
+          }
+        };
+
+        audio.onerror = () => {
+          console.warn("HF Audio element play failed, falling back to browser speech synthesis");
+          isHfVoiceActive.current = false;
+          speakWithBrowser(cleanText);
+        };
+
+        await audio.play();
+        return;
+      } catch (e) {
+        console.warn("Failed to play Hugging Face TTS audio, falling back to browser speech synthesis", e);
+      }
+    }
+
+    // Fallback to native Browser Speech Synthesis
+    speakWithBrowser(cleanText);
+  };
+
+  const speakWithBrowser = (cleanText: string) => {
+    if (!window.speechSynthesis) return;
     try {
       window.speechSynthesis.cancel();
-      setListening(false);
-      try {
-        recognitionRef.current?.stop();
-      } catch {}
 
-      const cleanText = text.replace(/[*_#`[\]()]/g, ""); // Clean markdown characters
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-      utteranceRef.current = utterance;
+      // Split text into sentences using simple regex
+      const sentences = cleanText.split(/(?<=[.?!])\s+/).filter(Boolean);
+      let index = 0;
 
-      // Apply configuration
-      const allVoices = window.speechSynthesis.getVoices();
-      const voice = allVoices.find(v => v.name === selectedVoiceName) || allVoices[0];
-      if (voice) utterance.voice = voice;
-      
-      utterance.rate = speechRate;
-      utterance.pitch = speechPitch;
-
-      utterance.onstart = () => {
-        setSpeaking(true);
-        setSpeechPaused(false);
-      };
-
-      utterance.onend = () => {
-        setSpeaking(false);
-        setSpeechPaused(false);
-        // Auto-listen logic
-        if (autoListen && recognitionRef.current) {
-          startListening();
-        }
-      };
-
-      utterance.onerror = (e) => {
-        // Only trigger error if not cancelled
-        if (e.error !== "interrupted") {
-          console.error("Speech synthesis error", e);
+      const speakNext = () => {
+        if (index >= sentences.length) {
           setSpeaking(false);
+          setSpeechPaused(false);
+          if (autoListen && recognitionRef.current) {
+            startListening();
+          }
+          return;
         }
+
+        const sentenceText = sentences[index].trim();
+        if (!sentenceText) {
+          index++;
+          speakNext();
+          return;
+        }
+
+        const utterance = new SpeechSynthesisUtterance(sentenceText);
+        utteranceRef.current = utterance;
+
+        const allVoices = window.speechSynthesis.getVoices();
+        const voice = allVoices.find(v => v.name === selectedVoiceName) || allVoices[0];
+        if (voice) utterance.voice = voice;
+
+        utterance.rate = speechRate;
+        utterance.pitch = speechPitch;
+
+        utterance.onstart = () => {
+          setSpeaking(true);
+          setSpeechPaused(false);
+        };
+
+        utterance.onend = () => {
+          index++;
+          // Introduce a natural 400ms pause between sentences
+          setTimeout(() => {
+            if (!speechPaused && !isHfVoiceActive.current) {
+              speakNext();
+            }
+          }, 400);
+        };
+
+        utterance.onerror = (e) => {
+          if (e.error !== "interrupted") {
+            console.error("Speech synthesis error", e);
+            setSpeaking(false);
+          }
+        };
+
+        window.speechSynthesis.speak(utterance);
       };
 
-      window.speechSynthesis.speak(utterance);
+      speakNext();
     } catch (e) {
       console.error("Speech synthesis failed", e);
       setSpeaking(false);
@@ -309,22 +447,36 @@ const VoiceInterviewAssistant = ({
   };
 
   const stopSpeaking = () => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+    if (isHfVoiceActive.current && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+      isHfVoiceActive.current = false;
+    }
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
     setSpeaking(false);
     setSpeechPaused(false);
   };
 
   const pauseSpeaking = () => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.pause();
-    setSpeechPaused(true);
+    if (isHfVoiceActive.current && audioRef.current) {
+      audioRef.current.pause();
+      setSpeechPaused(true);
+    } else if (window.speechSynthesis) {
+      window.speechSynthesis.pause();
+      setSpeechPaused(true);
+    }
   };
 
   const resumeSpeaking = () => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.resume();
-    setSpeechPaused(false);
+    if (isHfVoiceActive.current && audioRef.current) {
+      audioRef.current.play().catch(console.error);
+      setSpeechPaused(false);
+    } else if (window.speechSynthesis) {
+      window.speechSynthesis.resume();
+      setSpeechPaused(false);
+    }
   };
 
   // Automatically speak when questionText changes

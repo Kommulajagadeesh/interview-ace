@@ -27,7 +27,7 @@ const Navbar = () => {
   const links = [
     { to: "/home", label: "Home" },
     { to: "/learning", label: "Learning" },
-    { to: "/interview", label: "Start Interview" },
+    { to: "/interview", label: "Video Interview" },
     { to: "/dashboard", label: "Dashboard" },
   ];
 

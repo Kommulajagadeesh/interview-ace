@@ -13,6 +13,8 @@ import Learning from "./pages/Learning";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/AdminDashboard";
 import ProfileSetup from "./pages/ProfileSetup";
+import Results from "./pages/Results";
+import ExamArea from "./pages/ExamArea";
 import { isAdminLoggedIn } from "./lib/auth";
 import { SidebarLayout } from "./components/SidebarLayout";
 
@@ -46,6 +48,8 @@ const App = () => (
               <Route path="/learning" element={<Learning />} />
               <Route path="/interview" element={<Interview />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/results" element={<Results />} />
+              <Route path="/exam-area" element={<ExamArea />} />
             </Route>
 
             <Route element={<RequireAdminAuth />}>

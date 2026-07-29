@@ -18,6 +18,9 @@ type Props = {
   onMismatch?: () => void;
   onEyeContactChange?: (hasEyeContact: boolean) => void;
   onVerificationCapture?: (imageUrl: string) => void;
+  onMetricsUpdate?: (metrics: { eyeContact: number; posture: number; calmness: number; confidence: number }) => void;
+  onStreamActive?: (stream: MediaStream | null) => void;
+  compact?: boolean;
 };
 
 type FaceBox = { x: number; y: number; width: number; height: number };
@@ -38,7 +41,7 @@ const hammingDistance = (left: string, right: string) => {
 
 const requestCameraStream = async () => {
   if (navigator.mediaDevices?.getUserMedia) {
-    return navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+    return navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
   }
 
   const legacyNavigator = navigator as Navigator & {
@@ -59,7 +62,7 @@ const requestCameraStream = async () => {
   }
 
   return new Promise<MediaStream>((resolve, reject) => {
-    legacyGetUserMedia.call(navigator, { video: { facingMode: "user" }, audio: false }, resolve, reject);
+    legacyGetUserMedia.call(navigator, { video: { facingMode: "user" }, audio: true }, resolve, reject);
   });
 };
 
@@ -74,6 +77,9 @@ const FaceRecognition = ({
   onMismatch,
   onEyeContactChange,
   onVerificationCapture,
+  onMetricsUpdate,
+  onStreamActive,
+  compact = false,
 }: Props) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -82,6 +88,17 @@ const FaceRecognition = ({
   const detectorRef = useRef<any>(null);
   const detectorModeRef = useRef<"native" | "blaze" | null>(null);
   const mismatchStreakRef = useRef(0);
+
+  // Heuristic Computer Vision Analytics Tracking Refs
+  const baselineNoseX = useRef<number | null>(null);
+  const baselineNoseY = useRef<number | null>(null);
+  const baselineHeight = useRef<number | null>(null);
+  const lastNoseX = useRef<number | null>(null);
+  const lastNoseY = useRef<number | null>(null);
+
+  const eyeContactHistory = useRef<number[]>([]);
+  const postureHistory = useRef<number[]>([]);
+  const calmnessHistory = useRef<number[]>([]);
 
   const [streamActive, setStreamActive] = useState(false);
   const [facePresent, setFacePresent] = useState<boolean | null>(null);
@@ -161,9 +178,21 @@ const FaceRecognition = ({
     detectorRef.current = null;
     detectorModeRef.current = null;
     mismatchStreakRef.current = 0;
+    
+    // Reset Heuristics baseline & history
+    baselineNoseX.current = null;
+    baselineNoseY.current = null;
+    baselineHeight.current = null;
+    lastNoseX.current = null;
+    lastNoseY.current = null;
+    eyeContactHistory.current = [];
+    postureHistory.current = [];
+    calmnessHistory.current = [];
+
     setStreamActive(false);
     setFacePresent(null);
     setIdentityMatched(false);
+    onStreamActive?.(null);
   };
 
   const getFaceBox = async (): Promise<FaceBox | null> => {
@@ -284,15 +313,24 @@ const FaceRecognition = ({
 
       // 2. Eye contact & head turn checking
       let eyeContactOk = false;
+      let noseX = 0;
+      let noseY = 0;
+      let leftEyeX = 0;
+      let rightEyeX = 0;
+      let eyeDist = 0;
+      let landmarksOk = false;
+
       if (present && prediction && detectorModeRef.current === "blaze") {
         const landmarks = prediction.landmarks;
         if (landmarks && landmarks.length >= 3) {
-          const rightEyeX = landmarks[0][0];
-          const leftEyeX = landmarks[1][0];
-          const noseX = landmarks[2][0];
-          const eyeDist = Math.abs(leftEyeX - rightEyeX);
+          rightEyeX = landmarks[0][0];
+          leftEyeX = landmarks[1][0];
+          noseX = landmarks[2][0];
+          noseY = landmarks[2][1];
+          eyeDist = Math.abs(leftEyeX - rightEyeX);
           if (eyeDist > 0) {
             const ratio = Math.abs(noseX - rightEyeX) / eyeDist;
+            landmarksOk = true;
             // Eye contact is ok if head is facing forward (ratio is in [0.32, 0.68])
             if (ratio >= 0.32 && ratio <= 0.68) {
               eyeContactOk = true;
@@ -315,6 +353,65 @@ const FaceRecognition = ({
           }
         } else {
           mismatchStreakRef.current = 0;
+        }
+      }
+
+      // 2.5 Heuristic CV Metrics calculation
+      if (present) {
+        let eyeContactVal = eyeContactOk ? 100 : 0;
+        let postureVal = 100;
+        let calmnessVal = 100;
+
+        if (landmarksOk) {
+          // Get bounding box
+          const box = await getFaceBox();
+          if (box) {
+            // Setup baseline posture if not set
+            if (baselineNoseY.current === null) {
+              baselineNoseX.current = noseX;
+              baselineNoseY.current = noseY;
+              baselineHeight.current = box.height;
+            }
+
+            // Posture calculation
+            const dyBaseline = Math.abs(noseY - baselineNoseY.current);
+            const dHeight = Math.abs(box.height - baselineHeight.current);
+            // Slouching decreases score
+            postureVal = Math.max(0, 100 - (dyBaseline / box.height) * 150 - (dHeight / baselineHeight.current) * 100);
+
+            // Calmness (movement tracking)
+            if (lastNoseX.current !== null && lastNoseY.current !== null) {
+              const dx = noseX - lastNoseX.current;
+              const dy = noseY - lastNoseY.current;
+              const displacement = Math.sqrt(dx * dx + dy * dy);
+              const normDisplacement = displacement / Math.max(1, eyeDist);
+              calmnessVal = Math.max(0, 100 - normDisplacement * 150);
+            }
+            lastNoseX.current = noseX;
+            lastNoseY.current = noseY;
+          }
+        }
+
+        eyeContactHistory.current.push(eyeContactVal);
+        postureHistory.current.push(postureVal);
+        calmnessHistory.current.push(calmnessVal);
+
+        if (eyeContactHistory.current.length > 20) eyeContactHistory.current.shift();
+        if (postureHistory.current.length > 20) postureHistory.current.shift();
+        if (calmnessHistory.current.length > 20) calmnessHistory.current.shift();
+
+        const eyeContactScore = Math.round(eyeContactHistory.current.reduce((a, b) => a + b, 0) / eyeContactHistory.current.length);
+        const postureScore = Math.round(postureHistory.current.reduce((a, b) => a + b, 0) / postureHistory.current.length);
+        const calmnessScore = Math.round(calmnessHistory.current.reduce((a, b) => a + b, 0) / calmnessHistory.current.length);
+        const confidenceScore = Math.round(eyeContactScore * 0.4 + postureScore * 0.3 + calmnessScore * 0.3);
+
+        if (mode === "monitor" && onMetricsUpdate) {
+          onMetricsUpdate({
+            eyeContact: eyeContactScore,
+            posture: postureScore,
+            calmness: calmnessScore,
+            confidence: confidenceScore
+          });
         }
       }
 
@@ -363,6 +460,7 @@ const FaceRecognition = ({
       }
 
       setStreamActive(true);
+      onStreamActive?.(stream);
 
       // Force BlazeFace to guarantee landmark coordinates are available
       detectorModeRef.current = "blaze";
@@ -397,6 +495,25 @@ const FaceRecognition = ({
   };
 
   if (!enabled) return null;
+
+  if (compact) {
+    return (
+      <div className="relative w-full h-full min-h-[140px] overflow-hidden rounded-lg">
+        <video 
+          ref={videoRef} 
+          autoPlay 
+          muted 
+          playsInline 
+          className="w-full h-full object-cover bg-black" 
+        />
+        {permissionError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80 text-destructive text-[10px] p-2 text-center font-mono">
+            {permissionError}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const title = mode === "monitor" ? "Camera check" : "Selfie verification";
 

@@ -1,0 +1,71 @@
+Smart Interview AI - Python Practice Exam Sheet
+
+Q1. What is the output of print(2 ** 3) in Python?
+A. 6
+B. 8
+C. 9
+D. 5
+Answer: B
+
+Q2. Which of the following is a mutable data structure in Python?
+A. Tuple
+B. List
+C. String
+D. Integer
+Answer: B
+
+Q3. What does the "len()" function do in Python?
+A. Returns the type of an object
+B. Returns the memory address of an object
+C. Returns the number of items in an object
+D. Converts a string to uppercase
+Answer: C
+
+Q4. How do you start a comment block in Python?
+A. //
+B. /*
+C. #
+D. <!--
+Answer: C
+
+Q5. Which keyword is used to define a function in Python?
+A. function
+B. define
+C. def
+D. func
+Answer: C
+
+Q6. What is the value of 5 // 2 in Python?
+A. 2.5
+B. 2
+C. 3
+D. 2.0
+Answer: B
+
+Q7. How can you add an element to the end of a list?
+A. list.add(element)
+B. list.insert(element)
+C. list.append(element)
+D. list.push(element)
+Answer: C
+
+Q8. Which method is used to remove all whitespace from the beginning and end of a string?
+A. strip()
+B. trim()
+C. clear()
+D. replace()
+Answer: A
+
+Q9. What is the output of print("Hello" + " " + "World")?
+A. Hello World
+B. HelloWorld
+C. Hello+World
+D. Error
+Answer: A
+
+Q10. Which statement is used to exit a loop early in Python?
+A. exit
+B. stop
+C. break
+D. continue
+Answer: C

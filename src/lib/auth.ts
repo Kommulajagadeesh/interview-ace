@@ -60,10 +60,11 @@ export const CURRENT_USER_EMAIL_KEY = "smartInterviewCurrentUserEmail";
 
 export const setCurrentUserEmail = (email: string) => {
   sessionStorage.setItem(CURRENT_USER_EMAIL_KEY, email);
+  localStorage.setItem(CURRENT_USER_EMAIL_KEY, email);
 };
 
 export const getCurrentUserEmail = () => {
-  return sessionStorage.getItem(CURRENT_USER_EMAIL_KEY);
+  return sessionStorage.getItem(CURRENT_USER_EMAIL_KEY) || localStorage.getItem(CURRENT_USER_EMAIL_KEY);
 };
 
 const clearSensitiveStorage = () => {
@@ -273,12 +274,14 @@ export const getProfileDataKey = () => {
 };
 
 export const isProfileSetupComplete = () => {
-  return sessionStorage.getItem(getProfileCompleteKey()) === "true";
+  return sessionStorage.getItem(getProfileCompleteKey()) === "true" || localStorage.getItem(getProfileCompleteKey()) === "true";
 };
 
 export const saveUserProfile = async (profile: UserProfile) => {
   sessionStorage.setItem(getProfileDataKey(), JSON.stringify(profile));
+  localStorage.setItem(getProfileDataKey(), JSON.stringify(profile));
   sessionStorage.setItem(getProfileCompleteKey(), "true");
+  localStorage.setItem(getProfileCompleteKey(), "true");
 
   try {
     const email = profile.email || getCurrentUserEmail() || "";
@@ -296,7 +299,9 @@ export const saveUserProfile = async (profile: UserProfile) => {
 
 export const saveInitialProfile = async (profile: UserProfile) => {
   sessionStorage.setItem(getProfileDataKey(), JSON.stringify(profile));
+  localStorage.setItem(getProfileDataKey(), JSON.stringify(profile));
   sessionStorage.setItem(getProfileCompleteKey(), "false");
+  localStorage.setItem(getProfileCompleteKey(), "false");
 
   try {
     const email = profile.email || getCurrentUserEmail() || "";
@@ -314,7 +319,7 @@ export const saveInitialProfile = async (profile: UserProfile) => {
 
 export const getUserProfile = (): UserProfile | null => {
   try {
-    const raw = sessionStorage.getItem(getProfileDataKey());
+    const raw = sessionStorage.getItem(getProfileDataKey()) || localStorage.getItem(getProfileDataKey());
     if (!raw) return null;
     return JSON.parse(raw);
   } catch {
@@ -329,10 +334,15 @@ export const syncProfileFromDatabase = async (email: string) => {
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       const data = snap.data() as UserProfile;
-      sessionStorage.setItem(`smartInterviewUserProfile_${email.trim().toLowerCase()}`, JSON.stringify(data));
-      sessionStorage.setItem(`smartInterviewProfileSetupComplete_${email.trim().toLowerCase()}`, "true");
+      const dataKey = `smartInterviewUserProfile_${email.trim().toLowerCase()}`;
+      const completeKey = `smartInterviewProfileSetupComplete_${email.trim().toLowerCase()}`;
+      sessionStorage.setItem(dataKey, JSON.stringify(data));
+      localStorage.setItem(dataKey, JSON.stringify(data));
+      sessionStorage.setItem(completeKey, "true");
+      localStorage.setItem(completeKey, "true");
       if (data.profilePhoto) {
         sessionStorage.setItem(`interviewSelfie_${email.trim().toLowerCase()}`, data.profilePhoto);
+        localStorage.setItem(`interviewSelfie_${email.trim().toLowerCase()}`, data.profilePhoto);
       }
       return data;
     }
