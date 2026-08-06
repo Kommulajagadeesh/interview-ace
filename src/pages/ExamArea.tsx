@@ -2322,218 +2322,180 @@ const ExamArea = () => {
           STUDENT SUBMITTED / SCORE PAGE
           ------------------------------------------------------------- */}
       {/* -------------------------------------------------------------
-          STUDENT SUBMITTED / SCORE PAGE (LIVE EXAM RESULTS)
+          STUDENT SUBMITTED / LIVE EXAM AREA TOP WINNERS ONLY
           ------------------------------------------------------------- */}
       {mode === "student_submitted" && activeSession && (() => {
         const answersToUse = student?.answers || studentAnswers;
         const totalQuestions = activeSession.questions.length;
         
         let score = 0;
-        let correctCount = 0;
-        let incorrectCount = 0;
-        let unansweredCount = 0;
-
         if (activeSession.examType === "mcq") {
-          activeSession.questions.forEach((q: any, idx) => {
+          activeSession.questions.forEach((q: any, idx: number) => {
             const userAns = answersToUse[idx];
-            if (userAns === undefined || userAns === null || userAns === -1) {
-              unansweredCount++;
-            } else if (userAns === q.correctOption) {
-              correctCount++;
-            } else {
-              incorrectCount++;
+            if (userAns === q.correctOption) {
+              score++;
             }
           });
-          score = correctCount;
         } else {
-          score = answersToUse.filter((ans) => typeof ans === "string" && ans.trim().length > 0).length;
-          correctCount = score;
-          unansweredCount = totalQuestions - score;
+          score = answersToUse.filter((ans: any) => typeof ans === "string" && ans.trim().length > 0).length;
         }
 
         const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
         const candidateName = student?.name || studentName || "Candidate";
         const candidateEmail = student?.email || currentStudentEmail || "candidate@example.com";
-        const warningsCount = student?.warnings ?? studentWarnings ?? 0;
+        
+        // Save score to global leaderboard for Intelligence Dashboard
+        import("@/lib/auth").then(({ saveInterviewSession }) => {
+          saveInterviewSession({
+            date: new Date().toISOString(),
+            category: activeSession.category,
+            results: [],
+            mcqScore: percentage
+          }).catch(() => {});
+        });
 
-        const getGradeBadge = (pct: number) => {
-          if (pct >= 80) return { label: "Outstanding", color: "bg-success/20 text-success border-success/30" };
-          if (pct >= 60) return { label: "Passed", color: "bg-primary/20 text-primary border-primary/30" };
-          return { label: "Needs Improvement", color: "bg-amber-500/20 text-amber-500 border-amber-500/30" };
-        };
+        // Sorted leaderboard list of candidates in live exam area
+        const leaderboardList = Object.values(activeSession.students || {}).sort((a, b) => {
+          return getStudentScore(b, activeSession) - getStudentScore(a, activeSession);
+        });
 
-        const grade = getGradeBadge(percentage);
+        // If current student is not yet in leaderboard list, ensure they appear
+        const currentUserInList = leaderboardList.find(s => s.email === candidateEmail);
+        if (!currentUserInList && student) {
+          leaderboardList.push(student);
+          leaderboardList.sort((a, b) => getStudentScore(b, activeSession) - getStudentScore(a, activeSession));
+        }
+
+        const candidateRankIndex = leaderboardList.findIndex(s => s.email === candidateEmail);
+        const candidateRankNum = candidateRankIndex !== -1 ? candidateRankIndex + 1 : 1;
+
+        const topThreeWinners = leaderboardList.slice(0, 3);
 
         return (
           <div className="max-w-3xl mx-auto w-full space-y-6">
-            <Card className="bg-card/60 backdrop-blur-md border border-border/50 shadow-2xl overflow-hidden">
-              <CardHeader className="text-center pb-4 border-b border-border/40 bg-secondary/10">
-                <div className="p-3 bg-success/15 rounded-full w-fit mx-auto text-success border border-success/30 mb-2 shadow-sm">
-                  <Trophy className="w-8 h-8" />
+            <Card className="bg-card/70 backdrop-blur-md border border-amber-500/30 shadow-2xl overflow-hidden relative">
+              
+              {/* Gold Top Banner */}
+              <div className="bg-gradient-to-r from-amber-500/20 via-primary/20 to-amber-500/20 p-6 text-center border-b border-amber-500/30">
+                <div className="inline-flex items-center justify-center p-3 bg-amber-500/20 text-amber-500 rounded-2xl mb-3 border border-amber-500/40 shadow-lg">
+                  <Trophy className="w-10 h-10 animate-bounce" />
                 </div>
-                <CardTitle className="text-2xl sm:text-3xl font-extrabold tracking-tight">Exam Results & Performance Report</CardTitle>
-                <CardDescription className="text-xs text-muted-foreground">
-                  Official report generated for <strong className="text-foreground">{candidateName}</strong> ({candidateEmail})
-                </CardDescription>
-              </CardHeader>
+                <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-foreground">Live Exam Area - Top Winners</h1>
+                <p className="text-xs sm:text-sm font-semibold text-muted-foreground mt-1">
+                  Official Leaderboard & Rankings for <strong className="text-amber-500">{activeSession.title}</strong>
+                </p>
+              </div>
 
               <CardContent className="p-6 space-y-6">
                 
-                {/* Score Summary Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                  <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 flex flex-col justify-center items-center">
-                    <span className="text-[10px] font-extrabold uppercase text-primary tracking-wider">Final Score</span>
-                    <div className="text-2xl sm:text-3xl font-black text-primary mt-1">
-                      {score} <span className="text-sm font-normal text-muted-foreground">/ {totalQuestions}</span>
+                {/* Candidate Personal Rank Highlight Banner */}
+                <div className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-primary/10 border border-primary/30 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md text-left">
+                  <div className="flex items-center gap-3">
+                    {renderStudentAvatar(student || { name: candidateName, email: candidateEmail, currentIndex: 0, answers: [], warnings: 0, status: "submitted", logs: [] }, "w-12 h-12")}
+                    <div>
+                      <div className="text-[10px] font-extrabold uppercase text-primary tracking-wider">Your Live Result</div>
+                      <h3 className="text-base font-bold text-foreground">{candidateName} <span className="text-xs text-muted-foreground">({candidateEmail})</span></h3>
+                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-3">
+                        <span>Score: <strong className="text-primary font-extrabold">{score} / {totalQuestions}</strong></span>
+                        <span>Marks: <strong className="text-emerald-500 font-black">{percentage}%</strong></span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-card border border-border/50 flex flex-col justify-center items-center">
-                    <span className="text-[10px] font-extrabold uppercase text-muted-foreground tracking-wider">Percentage</span>
-                    <div className="text-2xl sm:text-3xl font-black text-foreground mt-1">
-                      {percentage}%
-                    </div>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-card border border-border/50 flex flex-col justify-center items-center">
-                    <span className="text-[10px] font-extrabold uppercase text-muted-foreground tracking-wider">Verdict Grade</span>
-                    <span className={`mt-2 px-2.5 py-1 rounded-full text-xs font-black border uppercase ${grade.color}`}>
-                      {grade.label}
-                    </span>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-card border border-border/50 flex flex-col justify-center items-center">
-                    <span className="text-[10px] font-extrabold uppercase text-muted-foreground tracking-wider">Anti-Cheat Audit</span>
-                    <div className="text-xs font-bold text-success flex items-center gap-1 mt-2">
-                      <Shield className="w-4 h-4 text-success" />
-                      {warningsCount === 0 ? "Clean (0/3)" : `${warningsCount} Warning(s)`}
+                  <div className="text-center sm:text-right shrink-0">
+                    <div className="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-500 border border-amber-500/40 font-black text-sm sm:text-base flex items-center gap-1.5 shadow-sm">
+                      <Trophy className="w-4 h-4 fill-amber-500" />
+                      Rank #{candidateRankNum} {candidateRankNum === 1 ? "(1st Place 🏆)" : candidateRankNum === 2 ? "(2nd Place 🥈)" : candidateRankNum === 3 ? "(3rd Place 🥉)" : ""}
                     </div>
                   </div>
                 </div>
 
-                {/* Progress bar */}
-                <div className="space-y-1.5 text-left">
-                  <div className="flex justify-between text-xs font-bold">
-                    <span>Performance Rating</span>
-                    <span className="text-primary">{percentage}% Complete</span>
-                  </div>
-                  <div className="w-full h-3 bg-secondary/50 rounded-full overflow-hidden border border-border/40 p-0.5">
-                    <div 
-                      className="h-full bg-gradient-to-r from-primary to-success rounded-full transition-all duration-500" 
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Breakdown Stats Bar */}
-                {activeSession.examType === "mcq" && (
-                  <div className="grid grid-cols-3 gap-3 text-xs text-center pt-1">
-                    <div className="p-2.5 rounded-lg bg-success/10 border border-success/20 text-success font-bold">
-                      ✓ Correct: {correctCount}
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive font-bold">
-                      ✗ Incorrect: {incorrectCount}
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-secondary/40 border border-border/40 text-muted-foreground font-bold">
-                      ? Unanswered: {unansweredCount}
-                    </div>
-                  </div>
-                )}
-
-                {/* Detailed Questions Review */}
-                <div className="space-y-4 pt-2 text-left">
-                  <div className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                {/* Top Winners Podium / Top 3 Ranks Cards Only */}
+                <div className="space-y-3 text-left">
+                  <div className="text-xs font-black uppercase text-amber-500 tracking-wider flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
-                      <FileText className="w-4 h-4 text-primary" /> Comprehensive Paper Review & Correct Answers
+                      <Trophy className="w-4 h-4 text-amber-500" /> Top 3 Winners of Live Exam Area
                     </span>
-                    <span className="text-[10px] text-primary font-bold">{totalQuestions} Questions</span>
+                    <span className="text-[10px] text-muted-foreground font-semibold">Updated Real-Time</span>
                   </div>
 
-                  <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
-                    {activeSession.questions.map((q: any, idx: number) => {
-                      const userAns = answersToUse[idx];
+                  <div className="grid gap-3">
+                    {topThreeWinners.map((winner, idx) => {
+                      const rankNum = idx + 1;
+                      const winnerScore = getStudentScore(winner, activeSession);
+                      const winnerPercentage = totalQuestions > 0 ? Math.round((winnerScore / totalQuestions) * 100) : 0;
+                      const isCurrentUser = winner.email === candidateEmail;
 
-                      if (activeSession.examType === "coding") {
-                        const codeWritten = typeof userAns === "string" ? userAns : "";
-                        const hasCode = codeWritten.trim().length > 0;
-                        return (
-                          <div key={idx} className="p-4 rounded-xl border border-border/50 bg-secondary/15 space-y-2">
-                            <div className="flex justify-between items-start gap-2">
-                              <span className="text-xs font-bold text-primary">Problem {idx + 1}: {q.text}</span>
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                hasCode ? "bg-success/15 text-success border border-success/30" : "bg-destructive/15 text-destructive border border-destructive/30"
-                              }`}>
-                                {hasCode ? "Code Submitted" : "No Code Written"}
-                              </span>
-                            </div>
-                            <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg font-mono text-xs text-slate-100 whitespace-pre overflow-x-auto">
-                              {hasCode ? codeWritten : "# No submission provided for this problem"}
-                            </div>
-                          </div>
+                      let rankBadge = (
+                        <span className="flex items-center gap-1 text-amber-500 font-black text-sm">
+                          🥇 1st Place
+                        </span>
+                      );
+                      let cardStyle = "bg-amber-500/10 border-amber-500/40 shadow-md";
+
+                      if (rankNum === 2) {
+                        rankBadge = (
+                          <span className="flex items-center gap-1 text-slate-300 font-black text-sm">
+                            🥈 2nd Place
+                          </span>
                         );
-                      } else {
-                        // MCQ Breakdown
-                        const mcq = q as MCQQuestion;
-                        const isCorrect = userAns === mcq.correctOption;
-                        const isUnanswered = userAns === undefined || userAns === null || userAns === -1;
-
-                        return (
-                          <div key={idx} className="p-4 rounded-xl border border-border/50 bg-secondary/15 space-y-3 text-xs">
-                            <div className="font-bold flex items-start justify-between gap-2">
-                              <span className="text-foreground leading-relaxed">Q{idx + 1}. {mcq.text}</span>
-                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
-                                isCorrect ? "bg-success/20 text-success border border-success/30" :
-                                isUnanswered ? "bg-secondary text-muted-foreground border border-border" :
-                                "bg-destructive/20 text-destructive border border-destructive/30"
-                              }`}>
-                                {isCorrect ? "✓ CORRECT" : isUnanswered ? "NOT ANSWERED" : "✗ INCORRECT"}
-                              </span>
-                            </div>
-
-                            {/* Options List */}
-                            <div className="space-y-1.5 pt-1">
-                              {mcq.options.map((option: string, optIdx: number) => {
-                                const isUserSelected = userAns === optIdx;
-                                const isRightAnswer = mcq.correctOption === optIdx;
-
-                                let optionStyle = "bg-card/50 border-border/40 text-muted-foreground";
-                                if (isRightAnswer) {
-                                  optionStyle = "bg-success/15 border-success/40 text-success font-bold";
-                                } else if (isUserSelected && !isRightAnswer) {
-                                  optionStyle = "bg-destructive/15 border-destructive/40 text-destructive font-bold";
-                                }
-
-                                return (
-                                  <div key={optIdx} className={`p-2.5 rounded-lg border flex items-center justify-between transition-all ${optionStyle}`}>
-                                    <span>{option}</span>
-                                    {isRightAnswer && <CheckCircle className="w-4 h-4 text-success shrink-0" />}
-                                    {isUserSelected && !isRightAnswer && <XCircle className="w-4 h-4 text-destructive shrink-0" />}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
+                        cardStyle = "bg-slate-400/10 border-slate-400/30";
+                      } else if (rankNum === 3) {
+                        rankBadge = (
+                          <span className="flex items-center gap-1 text-amber-700 font-black text-sm">
+                            🥉 3rd Place
+                          </span>
                         );
+                        cardStyle = "bg-amber-700/10 border-amber-700/30";
                       }
+
+                      return (
+                        <div key={winner.email} className={`p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all ${cardStyle} ${isCurrentUser ? "ring-2 ring-primary/50" : ""}`}>
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <div className="relative shrink-0">
+                              {renderStudentAvatar(winner, "w-11 h-11")}
+                              <div className="absolute -top-1 -right-1 bg-background text-foreground text-[10px] p-0.5 rounded-full border border-border">
+                                {rankNum === 1 ? "🥇" : rankNum === 2 ? "🥈" : "🥉"}
+                              </div>
+                            </div>
+                            <div className="truncate">
+                              <div className="font-extrabold text-sm text-foreground flex items-center gap-2 truncate">
+                                {winner.name}
+                                {isCurrentUser && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] bg-primary text-primary-foreground font-bold">
+                                    YOU
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate">{winner.email}</div>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <div className="text-base font-black text-emerald-500">{winnerPercentage}% Marks</div>
+                            <div className="mt-0.5">{rankBadge}</div>
+                          </div>
+                        </div>
+                      );
                     })}
                   </div>
                 </div>
 
               </CardContent>
 
-              <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border/40 bg-secondary/10">
+              <CardFooter className="flex flex-col sm:flex-row gap-3 p-6 border-t border-border/40 bg-secondary/10">
                 <Button 
                   variant="outline" 
-                  className="w-full sm:w-1/2 font-semibold" 
+                  className="w-full sm:w-1/2 font-bold" 
                   onClick={() => window.print()}
                 >
-                  <Download className="w-4 h-4 mr-1.5" /> Save / Print Result Report
+                  <Download className="w-4 h-4 mr-1.5" /> Print Winners Report
                 </Button>
                 <Button 
-                  className="w-full sm:w-1/2 font-semibold" 
+                  className="w-full sm:w-1/2 font-bold bg-primary hover:bg-primary/90 text-primary-foreground" 
                   onClick={() => setMode("select")}
                 >
-                  Return to Exam Area <ChevronRight className="w-4 h-4 ml-1" />
+                  Return to Live Exam Area <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               </CardFooter>
             </Card>
