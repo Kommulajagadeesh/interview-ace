@@ -13,6 +13,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import ProfileSetup from "./pages/ProfileSetup";
 import Results from "./pages/Results";
 import ExamArea from "./pages/ExamArea";
+import Inter from "./pages/Inter";
 import { isUserLoggedIn, isProfileSetupComplete, isAdminLoggedIn } from "./lib/auth";
 
 const queryClient = new QueryClient();
@@ -57,6 +58,7 @@ const App = () => (
               <Route path="/home" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/interview" element={<Interview />} />
+              <Route path="/inter" element={<Inter />} />
               <Route path="/results" element={<Results />} />
               <Route path="/exam-area" element={<ExamArea />} />
             </Route>

@@ -30,6 +30,7 @@ export const Dashboard = () => {
   const isHomeActive = currentPath === "/dashboard" || currentPath === "/home" || currentPath === "/";
   const isExamAreaActive = currentPath === "/exam-area";
   const isInterviewActive = currentPath === "/interview";
+  const isInterActive = currentPath === "/inter";
   const [userEmail, setUserEmail] = useState<string>("venkateshpolarathi5@gmail.com");
 
   const handleLogout = () => {
@@ -220,6 +221,20 @@ export const Dashboard = () => {
             >
               <span className={`material-symbols-outlined text-[20px] ${isInterviewActive ? "text-primary" : "text-slate-600 group-hover:text-primary"}`}>forum</span>
               <span className="tracking-tight">Interview</span>
+            </button>
+
+            {/* 3b. Inter (FoloUp AI Model) Link Button */}
+            <button
+              onClick={() => navigate("/inter")}
+              className={`text-sm font-extrabold transition-all cursor-pointer flex items-center gap-2 py-1.5 px-3.5 rounded-full shadow-xs active:scale-95 group ${
+                isInterActive
+                  ? "text-indigo-600 bg-indigo-50 border-2 border-indigo-300"
+                  : "text-indigo-700 hover:text-indigo-900 bg-indigo-50/70 hover:bg-indigo-100/80 border border-indigo-200"
+              }`}
+              title="Try FoloUp Voice AI Interview Model"
+            >
+              <span className="material-symbols-outlined text-[20px] text-indigo-600 group-hover:scale-110 transition-transform">smart_toy</span>
+              <span className="tracking-tight">Inter (FoloUp)</span>
             </button>
 
             {/* 4. ATS Score Link Button (Right side of Interview) */}
