@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAnalytics, isSupported, Analytics } from "firebase/analytics";
 import {
   getAuth,
   signInWithEmailAndPassword,
@@ -6,18 +7,24 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut as firebaseSignOut,
+  sendEmailVerification,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
+  sendPasswordResetEmail,
+  User,
   UserCredential,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAPMlP1mxp7tMhNb2u3HhMfd4IPOCXPKBw",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "ai-powered-interview-25mg.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "ai-powered-interview-25mg",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "ai-powered-interview-25mg.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "711837872846",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:711837872846:web:4dcc5f1146475c3a56569f",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-QX45QSPLT8",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDgO-ylsdggyrmlN5n1ylsKBUJdrUY939E",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "smart-ai-interview-5249e.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "smart-ai-interview-5249e",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "smart-ai-interview-5249e.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "281265182713",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:281265182713:web:8281db9539a5a7ac774f28",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-566VXDDMDQ",
 };
 
 // Prevent duplicate initialization
@@ -26,6 +33,17 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+let analytics: Analytics | null = null;
+if (typeof window !== "undefined") {
+  isSupported().then((supported) => {
+    if (supported) {
+      analytics = getAnalytics(app);
+    }
+  }).catch(() => {
+    // Analytics not supported in this environment
+  });
+}
 
 // Create mock user credential for local auth fallback
 const createMockUserCredential = (email: string, displayName?: string): UserCredential => ({
@@ -138,8 +156,24 @@ export const signInWithGoogle = async (): Promise<UserCredential> => {
   }
 };
 
+export const sendVerificationEmail = (user: User) => sendEmailVerification(user);
+
+export const sendMagicLink = async (email: string) => {
+  const actionCodeSettings = {
+    url: window.location.origin + "/login?verifyEmail=" + encodeURIComponent(email),
+    handleCodeInApp: true,
+  };
+  await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+};
+
+export const checkIsEmailLink = (url: string) => isSignInWithEmailLink(auth, url);
+
+export const completeEmailLinkSignIn = (email: string, url: string) =>
+  signInWithEmailLink(auth, email, url);
+
+export const sendPasswordReset = (email: string) =>
+  sendPasswordResetEmail(auth, email);
+
 export const signOut = () => firebaseSignOut(auth).catch(() => {});
 
-export { auth, db };
-
-
+export { app, auth, db, analytics };

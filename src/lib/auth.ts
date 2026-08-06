@@ -1,5 +1,5 @@
 import { db } from "./firebase";
-import { doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, collection, getDocs, deleteDoc, increment } from "firebase/firestore";
 import type { InterviewResult } from "@/data/questions";
 
 export interface SessionData {
@@ -41,26 +41,81 @@ const readTrackedUsers = (): TrackedUserLogin[] => {
   }
 };
 
+export const safeSessionStorageSet = (key: string, value: string) => {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch (err) {
+    console.warn(`sessionStorage failed for key "${key}":`, err);
+    if (value.includes("data:image")) {
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === "object") {
+          if (parsed.profilePhoto) parsed.profilePhoto = "";
+          if (parsed.verificationPhoto) parsed.verificationPhoto = "";
+          sessionStorage.setItem(key, JSON.stringify(parsed));
+        }
+      } catch {
+        // Ignore
+      }
+    }
+  }
+};
+
+export const safeLocalStorageSet = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (err) {
+    console.warn(`localStorage failed for key "${key}":`, err);
+    if (value.includes("data:image")) {
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === "object") {
+          if (parsed.profilePhoto) parsed.profilePhoto = "";
+          if (parsed.verificationPhoto) parsed.verificationPhoto = "";
+          localStorage.setItem(key, JSON.stringify(parsed));
+        }
+      } catch {
+        // Ignore
+      }
+    }
+  }
+};
+
+export const isEmailVerified = (email: string): boolean => {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  if (normalized === "admin@smartinterview.com" || normalized === "student@smartinterview.com") {
+    return true;
+  }
+  return localStorage.getItem(`verifiedEmail_${normalized}`) === "true";
+};
+
+export const setEmailVerified = (email: string) => {
+  if (!email) return;
+  const normalized = email.trim().toLowerCase();
+  safeLocalStorageSet(`verifiedEmail_${normalized}`, "true");
+};
+
 export const isUserLoggedIn = () =>
   sessionStorage.getItem(USER_AUTH_KEY) === "true" ||
   localStorage.getItem(USER_AUTH_KEY) === "true";
 
 export const setUserLoggedIn = (rememberMe: boolean) => {
   if (rememberMe) {
-    localStorage.setItem(USER_AUTH_KEY, "true");
-    sessionStorage.setItem(USER_AUTH_KEY, "true");
+    safeLocalStorageSet(USER_AUTH_KEY, "true");
+    safeSessionStorageSet(USER_AUTH_KEY, "true");
     return;
   }
 
-  sessionStorage.setItem(USER_AUTH_KEY, "true");
+  safeSessionStorageSet(USER_AUTH_KEY, "true");
   localStorage.removeItem(USER_AUTH_KEY);
 };
 
 export const CURRENT_USER_EMAIL_KEY = "smartInterviewCurrentUserEmail";
 
 export const setCurrentUserEmail = (email: string) => {
-  sessionStorage.setItem(CURRENT_USER_EMAIL_KEY, email);
-  localStorage.setItem(CURRENT_USER_EMAIL_KEY, email);
+  safeSessionStorageSet(CURRENT_USER_EMAIL_KEY, email);
+  safeLocalStorageSet(CURRENT_USER_EMAIL_KEY, email);
 };
 
 export const getCurrentUserEmail = () => {
@@ -72,7 +127,7 @@ const clearSensitiveStorage = () => {
   localStorage.clear();
   sessionStorage.clear();
   if (theme) {
-    localStorage.setItem("vite-ui-theme", theme);
+    safeLocalStorageSet("vite-ui-theme", theme);
   }
 };
 
@@ -103,28 +158,17 @@ export const registerUserLogin = async (email: string) => {
     });
   }
 
-  sessionStorage.setItem(USER_LOGINS_KEY, JSON.stringify(users));
+  safeSessionStorageSet(USER_LOGINS_KEY, JSON.stringify(users));
 
-  // Sync to Firestore
-  try {
-    const docRef = doc(db, "userLogins", normalizedEmail);
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      await setDoc(docRef, {
-        email: normalizedEmail,
-        loginCount: (snap.data().loginCount || 0) + 1,
-        lastLoginAt: now,
-      }, { merge: true });
-    } else {
-      await setDoc(docRef, {
-        email: normalizedEmail,
-        loginCount: 1,
-        lastLoginAt: now,
-      });
-    }
-  } catch (err) {
-    console.error("Failed to sync login count to Firestore:", err);
-  }
+  // Sync to Firestore without blocking
+  const docRef = doc(db, "userLogins", normalizedEmail);
+  setDoc(docRef, {
+    email: normalizedEmail,
+    loginCount: increment(1),
+    lastLoginAt: now,
+  }, { merge: true })
+    .then(() => console.log("Login count synced to Firestore for:", normalizedEmail))
+    .catch((err) => console.error("Firestore setDoc error (userLogins):", err));
 };
 
 export const getTrackedUsers = (): TrackedUserLogin[] => readTrackedUsers();
@@ -146,7 +190,7 @@ export const syncTrackedUsersFromDatabase = async (): Promise<TrackedUserLogin[]
     });
 
     if (list.length > 0) {
-      sessionStorage.setItem(USER_LOGINS_KEY, JSON.stringify(list));
+      safeSessionStorageSet(USER_LOGINS_KEY, JSON.stringify(list));
     }
     return list;
   } catch (err) {
@@ -238,12 +282,12 @@ export const isAdminLoggedIn = () =>
 
 export const setAdminLoggedIn = (rememberMe: boolean) => {
   if (rememberMe) {
-    localStorage.setItem(ADMIN_AUTH_KEY, "true");
+    safeLocalStorageSet(ADMIN_AUTH_KEY, "true");
     sessionStorage.removeItem(ADMIN_AUTH_KEY);
     return;
   }
 
-  sessionStorage.setItem(ADMIN_AUTH_KEY, "true");
+  safeSessionStorageSet(ADMIN_AUTH_KEY, "true");
   localStorage.removeItem(ADMIN_AUTH_KEY);
 };
 
@@ -277,43 +321,60 @@ export const isProfileSetupComplete = () => {
   return sessionStorage.getItem(getProfileCompleteKey()) === "true" || localStorage.getItem(getProfileCompleteKey()) === "true";
 };
 
-export const saveUserProfile = async (profile: UserProfile) => {
-  sessionStorage.setItem(getProfileDataKey(), JSON.stringify(profile));
-  localStorage.setItem(getProfileDataKey(), JSON.stringify(profile));
-  sessionStorage.setItem(getProfileCompleteKey(), "true");
-  localStorage.setItem(getProfileCompleteKey(), "true");
-
-  try {
-    const email = profile.email || getCurrentUserEmail() || "";
-    if (email) {
-      const docRef = doc(db, "userProfiles", email.trim().toLowerCase());
-      await setDoc(docRef, {
-        ...profile,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
+const sanitizeForFirestore = <T extends Record<string, any>>(obj: T): T => {
+  const cleaned: any = {};
+  Object.keys(obj).forEach((key) => {
+    const val = obj[key];
+    if (val !== undefined) {
+      if (val && typeof val === "object" && !Array.isArray(val)) {
+        cleaned[key] = sanitizeForFirestore(val);
+      } else {
+        cleaned[key] = val;
+      }
+    } else {
+      cleaned[key] = "";
     }
-  } catch (err) {
-    console.error("Failed to sync profile to Firestore database:", err);
+  });
+  return cleaned as T;
+};
+
+export const saveUserProfile = async (profile: UserProfile) => {
+  safeSessionStorageSet(getProfileDataKey(), JSON.stringify(profile));
+  safeLocalStorageSet(getProfileDataKey(), JSON.stringify(profile));
+  safeSessionStorageSet(getProfileCompleteKey(), "true");
+  safeLocalStorageSet(getProfileCompleteKey(), "true");
+
+  const email = profile.email || getCurrentUserEmail() || "";
+  if (email) {
+    const docRef = doc(db, "userProfiles", email.trim().toLowerCase());
+    const payload = sanitizeForFirestore({
+      ...profile,
+      email: email.trim().toLowerCase(),
+      updatedAt: new Date().toISOString(),
+    });
+    setDoc(docRef, payload, { merge: true })
+      .then(() => console.log("Profile successfully saved to Firestore:", email))
+      .catch((err) => console.error("Firestore setDoc error (userProfiles):", err));
   }
 };
 
 export const saveInitialProfile = async (profile: UserProfile) => {
-  sessionStorage.setItem(getProfileDataKey(), JSON.stringify(profile));
-  localStorage.setItem(getProfileDataKey(), JSON.stringify(profile));
-  sessionStorage.setItem(getProfileCompleteKey(), "false");
-  localStorage.setItem(getProfileCompleteKey(), "false");
+  safeSessionStorageSet(getProfileDataKey(), JSON.stringify(profile));
+  safeLocalStorageSet(getProfileDataKey(), JSON.stringify(profile));
+  safeSessionStorageSet(getProfileCompleteKey(), "false");
+  safeLocalStorageSet(getProfileCompleteKey(), "false");
 
-  try {
-    const email = profile.email || getCurrentUserEmail() || "";
-    if (email) {
-      const docRef = doc(db, "userProfiles", email.trim().toLowerCase());
-      await setDoc(docRef, {
-        ...profile,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
-    }
-  } catch (err) {
-    console.error("Failed to sync initial profile to Firestore:", err);
+  const email = profile.email || getCurrentUserEmail() || "";
+  if (email) {
+    const docRef = doc(db, "userProfiles", email.trim().toLowerCase());
+    const payload = sanitizeForFirestore({
+      ...profile,
+      email: email.trim().toLowerCase(),
+      updatedAt: new Date().toISOString(),
+    });
+    setDoc(docRef, payload, { merge: true })
+      .then(() => console.log("Initial profile saved to Firestore:", email))
+      .catch((err) => console.error("Firestore setDoc error (initial profile):", err));
   }
 };
 
@@ -336,18 +397,18 @@ export const syncProfileFromDatabase = async (email: string) => {
       const data = snap.data() as UserProfile;
       const dataKey = `smartInterviewUserProfile_${email.trim().toLowerCase()}`;
       const completeKey = `smartInterviewProfileSetupComplete_${email.trim().toLowerCase()}`;
-      sessionStorage.setItem(dataKey, JSON.stringify(data));
-      localStorage.setItem(dataKey, JSON.stringify(data));
-      sessionStorage.setItem(completeKey, "true");
-      localStorage.setItem(completeKey, "true");
+      safeSessionStorageSet(dataKey, JSON.stringify(data));
+      safeLocalStorageSet(dataKey, JSON.stringify(data));
+      safeSessionStorageSet(completeKey, "true");
+      safeLocalStorageSet(completeKey, "true");
       if (data.profilePhoto) {
-        sessionStorage.setItem(`interviewSelfie_${email.trim().toLowerCase()}`, data.profilePhoto);
-        localStorage.setItem(`interviewSelfie_${email.trim().toLowerCase()}`, data.profilePhoto);
+        safeSessionStorageSet(`interviewSelfie_${email.trim().toLowerCase()}`, data.profilePhoto);
+        safeLocalStorageSet(`interviewSelfie_${email.trim().toLowerCase()}`, data.profilePhoto);
       }
       return data;
     }
   } catch (err) {
-    console.error("Failed to sync profile from Firestore:", err);
+    console.warn("Failed to sync profile from Firestore:", err);
   }
   return null;
 };
@@ -374,18 +435,17 @@ export const saveInterviewSession = async (session: SessionData) => {
   }
   
   const updated = [...existing.filter(s => s.date !== session.date), session];
-  sessionStorage.setItem(resultsKey, JSON.stringify(updated));
+  safeSessionStorageSet(resultsKey, JSON.stringify(updated));
 
-  try {
-    const docId = `${email.trim().toLowerCase()}_${new Date(session.date).getTime()}`;
-    const docRef = doc(db, "interviewSessions", docId);
-    await setDoc(docRef, {
-      ...session,
-      email: email.trim().toLowerCase(),
-    });
-  } catch (err) {
-    console.error("Failed to sync interview session to Firestore:", err);
-  }
+  const docId = `${email.trim().toLowerCase()}_${new Date(session.date).getTime()}`;
+  const docRef = doc(db, "interviewSessions", docId);
+  const payload = sanitizeForFirestore({
+    ...session,
+    email: email.trim().toLowerCase(),
+  });
+  setDoc(docRef, payload)
+    .then(() => console.log("Interview session saved to Firestore:", docId))
+    .catch((err) => console.error("Firestore setDoc error (interviewSessions):", err));
 };
 
 export const syncInterviewSessionsFromDatabase = async (email: string): Promise<SessionData[]> => {
@@ -411,7 +471,7 @@ export const syncInterviewSessionsFromDatabase = async (email: string): Promise<
 
     if (list.length > 0) {
       const sorted = list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      sessionStorage.setItem(`interviewResults_${email.trim().toLowerCase()}`, JSON.stringify(sorted));
+      safeSessionStorageSet(`interviewResults_${email.trim().toLowerCase()}`, JSON.stringify(sorted));
       return sorted;
     }
   } catch (err) {

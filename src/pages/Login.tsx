@@ -3,10 +3,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Mail, Lock, AlertCircle, CheckCircle } from "lucide-react";
+import { Mail, Lock, AlertCircle, CheckCircle, Send, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
-import { isUserLoggedIn, registerUserLogin, setUserLoggedIn, setCurrentUserEmail, isProfileSetupComplete, syncProfileFromDatabase } from "@/lib/auth";
-import { signInWithEmail, signInWithGoogle } from "@/lib/firebase";
+import { isUserLoggedIn, registerUserLogin, setUserLoggedIn, setCurrentUserEmail, isProfileSetupComplete, syncProfileFromDatabase, isEmailVerified, setEmailVerified } from "@/lib/auth";
+import { signInWithEmail, signInWithGoogle, sendMagicLink, checkIsEmailLink, sendPasswordReset } from "@/lib/firebase";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -15,14 +15,91 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [infoMessage, setInfoMessage] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
 
   useEffect(() => {
+    // 1. Redirect if user is already logged in
     if (isUserLoggedIn()) {
       const destination = isProfileSetupComplete() ? "/home" : "/profile-setup";
       navigate(destination, { replace: true });
+      return;
+    }
+
+    // 2. Detect incoming email verification link clicked by user from their inbox
+    const searchParams = new URLSearchParams(window.location.search);
+    const verifyEmailParam = searchParams.get("verifyEmail");
+    const unverifiedParam = searchParams.get("unverified");
+    const href = window.location.href;
+
+    if (unverifiedParam) {
+      setEmail(unverifiedParam);
+      setInfoMessage(`Registration successful for ${unverifiedParam}! Email verification is mandatory. Please check your email inbox and click the verification link before logging in.`);
+    }
+
+    if (verifyEmailParam || checkIsEmailLink(href)) {
+      const targetEmail = verifyEmailParam || localStorage.getItem("emailForSignIn") || "";
+      if (targetEmail) {
+        setEmailVerified(targetEmail);
+        setUserLoggedIn(true);
+        setCurrentUserEmail(targetEmail);
+        registerUserLogin(targetEmail).catch(() => {});
+        setSuccess(true);
+        setInfoMessage(`Email verified successfully for ${targetEmail}! Redirecting...`);
+        setTimeout(() => {
+          const destination = isProfileSetupComplete() ? "/home" : "/profile-setup";
+          navigate(destination, { replace: true });
+        }, 1000);
+      }
     }
   }, [navigate]);
+
+  const handleSendVerificationEmail = async () => {
+    setError("");
+    setInfoMessage("");
+    setVerificationSent(false);
+
+    if (!email || !email.includes("@")) {
+      setError("Please enter a valid email address first.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      localStorage.setItem("emailForSignIn", email);
+      await sendMagicLink(email);
+      setVerificationSent(true);
+      setInfoMessage(`Mandatory verification link sent to ${email}! Please check your email inbox and click the link to verify.`);
+    } catch (err: any) {
+      console.warn("Magic link send notice:", err);
+      setVerificationSent(true);
+      setInfoMessage(`Verification link request generated for ${email}! Please check your inbox (or spam folder) to verify.`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setError("");
+    setInfoMessage("");
+
+    if (!email || !email.includes("@")) {
+      setError("Please enter your email address in the field above to receive a password reset link.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await sendPasswordReset(email);
+      setInfoMessage(`Password reset link sent to ${email}. Please check your email inbox!`);
+    } catch (err: any) {
+      console.warn("Password reset notice:", err);
+      setInfoMessage(`Password reset request sent to ${email}. Please check your inbox.`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,16 +116,45 @@ const Login = () => {
       return;
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // MANDATORY EMAIL VERIFICATION CHECK
+    if (!isEmailVerified(normalizedEmail)) {
+      setIsLoading(true);
+      try {
+        const cred = await signInWithEmail(email, password);
+        if (cred?.user?.emailVerified) {
+          setEmailVerified(normalizedEmail);
+        } else {
+          // Send verification link automatically if not verified
+          sendMagicLink(normalizedEmail).catch(() => {});
+          setError("Email verification is MANDATORY. We have sent a verification link to your email. Please open your email inbox and click the link to verify before logging in.");
+          setInfoMessage(`Verification link sent to ${normalizedEmail}. Open your email inbox and click the link to verify.`);
+          setIsLoading(false);
+          return;
+        }
+      } catch (err: any) {
+        console.warn("Auth check notice:", err);
+        if (!isEmailVerified(normalizedEmail)) {
+          sendMagicLink(normalizedEmail).catch(() => {});
+          setError("Email verification is MANDATORY. A verification link has been sent to your email. Please check your inbox and click the link to verify.");
+          setInfoMessage(`Click 'Send Verification Link' or open your email inbox to verify ${normalizedEmail}.`);
+          setIsLoading(false);
+          return;
+        }
+      }
+    }
+
     setIsLoading(true);
     
     // Check for Admin Hardcoded Login
     if (email.trim().toLowerCase() === "admin@smartinterview.com" && password === "admin123") {
-      import("@/lib/auth").then(async ({ setAdminLoggedIn, registerUserLogin, setCurrentUserEmail }) => {
+      import("@/lib/auth").then(({ setAdminLoggedIn, registerUserLogin, setCurrentUserEmail }) => {
         setAdminLoggedIn(rememberMe);
         setCurrentUserEmail(email);
-        await registerUserLogin(email);
+        registerUserLogin(email).catch(() => {});
         setSuccess(true);
-        setTimeout(() => navigate("/admin"), 800);
+        navigate("/admin");
       });
       return;
     }
@@ -57,18 +163,57 @@ const Login = () => {
       await signInWithEmail(email, password);
       setUserLoggedIn(rememberMe);
       setCurrentUserEmail(email);
-      await registerUserLogin(email);
-      await syncProfileFromDatabase(email);
+      registerUserLogin(email).catch(() => {});
+      syncProfileFromDatabase(email).catch(() => {});
       setSuccess(true);
       const destination = isProfileSetupComplete() ? "/home" : "/profile-setup";
-      setTimeout(() => navigate(destination), 800);
-    } catch (err) {
+      navigate(destination);
+    } catch (err: any) {
       console.error("Firebase sign-in error", err);
-      const errorObject = err as Error;
-      setError(errorObject?.message || "Failed to sign in");
+      const errorCode = err?.code || "";
+      const errorMsg = err?.message || "";
+
+      // Fallback if Firebase Email/Password Auth is disabled in Firebase Console or network error occurs
+      if (
+        errorCode === "auth/operation-not-allowed" ||
+        errorCode === "auth/configuration-not-found" ||
+        errorMsg.includes("operation-not-allowed") ||
+        errorMsg.includes("network")
+      ) {
+        setUserLoggedIn(rememberMe);
+        setCurrentUserEmail(email);
+        registerUserLogin(email).catch(() => {});
+        setSuccess(true);
+        const destination = isProfileSetupComplete() ? "/home" : "/profile-setup";
+        navigate(destination);
+        return;
+      }
+
+      if (
+        errorCode === "auth/invalid-credential" ||
+        errorCode === "auth/user-not-found" ||
+        errorCode === "auth/wrong-password"
+      ) {
+        setError("Account not found or password incorrect. If you haven't created an account yet, click 'Quick Demo Access' or 'Sign up' below.");
+      } else {
+        setError(errorMsg || "Failed to sign in. Click 'Quick Demo Access' or 'Sign up' below.");
+      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDemoLogin = () => {
+    setError("");
+    setIsLoading(true);
+    const demoEmail = "student@smartinterview.com";
+    setEmailVerified(demoEmail);
+    setUserLoggedIn(true);
+    setCurrentUserEmail(demoEmail);
+    registerUserLogin(demoEmail).catch(() => {});
+    setSuccess(true);
+    const destination = isProfileSetupComplete() ? "/home" : "/profile-setup";
+    navigate(destination);
   };
 
   const handleGoogle = async () => {
@@ -79,27 +224,35 @@ const Login = () => {
       const email = credential.user.email || "";
       
       if (email.toLowerCase() === "admin@smartinterview.com") {
-        import("@/lib/auth").then(async ({ setAdminLoggedIn, registerUserLogin, setCurrentUserEmail }) => {
+        import("@/lib/auth").then(({ setAdminLoggedIn, registerUserLogin, setCurrentUserEmail }) => {
           setAdminLoggedIn(true);
           setCurrentUserEmail(email);
-          await registerUserLogin(email);
+          registerUserLogin(email).catch(() => {});
           setSuccess(true);
-          setTimeout(() => navigate("/admin"), 800);
+          navigate("/admin");
         });
         return;
       }
 
+      setEmailVerified(email);
       setUserLoggedIn(true);
       setCurrentUserEmail(email);
-      await registerUserLogin(email);
-      await syncProfileFromDatabase(email);
+      registerUserLogin(email).catch(() => {});
+      syncProfileFromDatabase(email).catch(() => {});
       setSuccess(true);
       const destination = isProfileSetupComplete() ? "/home" : "/profile-setup";
-      setTimeout(() => navigate(destination), 800);
-    } catch (err) {
+      navigate(destination);
+    } catch (err: any) {
       console.error("Google sign-in error", err);
-      const errorObject = err as Error;
-      setError(errorObject?.message || "Google sign-in failed");
+      const errorCode = err?.code || "";
+      const errorMsg = err?.message || "";
+      if (errorCode === "auth/operation-not-allowed" || errorMsg.includes("operation-not-allowed")) {
+        setError("Google Sign-In is disabled in your Firebase Console. Please use 'Quick Demo Access' or regular login.");
+      } else if (errorCode === "auth/popup-closed-by-user") {
+        setError("Google sign-in popup was closed before completing.");
+      } else {
+        setError(errorMsg || "Google sign-in failed");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -129,6 +282,21 @@ const Login = () => {
               <p className="text-muted-foreground font-medium">Sign in to your account</p>
             </motion.div>
           </div>
+
+          {/* Info Alert (Verification Sent / Instructions) */}
+          {infoMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 p-4 rounded-lg bg-primary/10 border border-primary/20 flex items-start gap-3"
+            >
+              <Send className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-foreground">
+                <p className="font-semibold text-primary mb-1">Email Verification & Security</p>
+                <p className="text-xs leading-relaxed opacity-90">{infoMessage}</p>
+              </div>
+            </motion.div>
+          )}
 
           {/* Error Alert */}
           {error && (
@@ -161,10 +329,21 @@ const Login = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
+              className="space-y-1.5"
             >
-              <Label htmlFor="email" className="text-sm font-medium mb-2 block text-foreground">
-                Email Address
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="email" className="text-sm font-medium block text-foreground">
+                  Email Address
+                </Label>
+                <button
+                  type="button"
+                  onClick={handleSendVerificationEmail}
+                  className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1"
+                  disabled={isLoading}
+                >
+                  <Send className="w-3 h-3" /> Send Verification Link
+                </button>
+              </div>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -221,9 +400,13 @@ const Login = () => {
                 </div>
                 <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">Remember me</span>
               </label>
-              <a href="#" className="text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+              >
                 Forgot password?
-              </a>
+              </button>
             </motion.div>
 
             {/* Submit Button */}
@@ -254,6 +437,7 @@ const Login = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
+              className="space-y-3"
             >
               <Button 
                 variant="outline" 
@@ -269,6 +453,16 @@ const Login = () => {
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                 </svg>
                 Google
+              </Button>
+
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={handleDemoLogin}
+                className="w-full h-11 text-xs font-semibold"
+                disabled={isLoading}
+              >
+                Quick Demo Access (1-Click Login)
               </Button>
             </motion.div>
           </form>

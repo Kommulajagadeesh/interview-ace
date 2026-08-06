@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allow full read and write access to all documents during development/testing
+    match /{document=**} {
+      allow read, write: if true;
+    }
+
+    // Production-ready specific collection rules (optional):
+    // match /userProfiles/{userId} {
+    //   allow read, write: if true;
+    // }
+    // match /userLogins/{email} {
+    //   allow read, write: if true;
+    // }
+    // match /interviewSessions/{sessionId} {
+    //   allow read, write: if true;
+    // }
+    // match /examSessions/{sessionId} {
+    //   allow read, write: if true;
+    // }
+  }
+}
