@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Home, Video, BarChart2, Settings, LogOut, Moon, Sun, Monitor, Shield, ChevronRight, Bot } from "lucide-react";
+import { Home, Video, BarChart2, Settings, LogOut, Moon, Sun, Monitor, Shield, ChevronRight } from "lucide-react";
 import { clearUserAuth, getCurrentUserEmail, getSelfieKey } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/ThemeProvider";
@@ -48,7 +48,6 @@ const Sidebar = () => {
     { to: "/home", label: "Home", icon: Home },
     { to: "/exam-area", label: "Exam Area", icon: Shield },
     { to: "/interview", label: "Video Interview", icon: Video },
-    { to: "/inter", label: "Inter (FoloUp AI)", icon: Bot },
     { to: "/dashboard", label: "Dashboard", icon: BarChart2 },
   ];
 
