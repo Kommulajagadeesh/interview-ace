@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Mail, Lock, AlertCircle, CheckCircle } from "lucide-react";
+import { Mail, Lock, AlertCircle, CheckCircle, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { isUserLoggedIn, registerUserLogin, setUserLoggedIn, setCurrentUserEmail, isProfileSetupComplete, syncProfileFromDatabase } from "@/lib/auth";
 import { signInWithEmail, signInWithGoogle } from "@/lib/firebase";
@@ -12,6 +12,7 @@ const Login = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -192,13 +193,21 @@ const Login = () => {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 bg-background/50 focus:bg-background border-border/50 focus:border-primary transition-colors"
+                  className="pl-10 pr-10 bg-background/50 focus:bg-background border-border/50 focus:border-primary transition-colors"
                   disabled={isLoading}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </motion.div>
 

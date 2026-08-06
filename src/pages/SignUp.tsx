@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Mail, Lock, AlertCircle, CheckCircle, User } from "lucide-react";
+import { Mail, Lock, AlertCircle, CheckCircle, User, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 
 const SignUp = () => {
@@ -14,6 +14,8 @@ const SignUp = () => {
     password: "",
     confirmPassword: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -235,13 +237,21 @@ const SignUp = () => {
                 <Input
                   id="password"
                   name="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={handleChange}
-                  className="pl-10 bg-background/50 focus:bg-background border-border/50 focus:border-primary transition-colors"
+                  className="pl-10 pr-10 bg-background/50 focus:bg-background border-border/50 focus:border-primary transition-colors"
                   disabled={isLoading}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </motion.div>
 
@@ -259,13 +269,21 @@ const SignUp = () => {
                 <Input
                   id="confirmPassword"
                   name="confirmPassword"
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="pl-10 bg-background/50 focus:bg-background border-border/50 focus:border-primary transition-colors"
+                  className="pl-10 pr-10 bg-background/50 focus:bg-background border-border/50 focus:border-primary transition-colors"
                   disabled={isLoading}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </motion.div>
 

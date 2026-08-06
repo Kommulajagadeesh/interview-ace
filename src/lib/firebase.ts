@@ -11,13 +11,13 @@ import {
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAPMlP1mxp7tMhNb2u3HhMfd4IPOCXPKBw",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "ai-powered-interview-25mg.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "ai-powered-interview-25mg",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "ai-powered-interview-25mg.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "711837872846",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:711837872846:web:4dcc5f1146475c3a56569f",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-QX45QSPLT8",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDgO-ylsdggyrmlN5n1ylsKBUJdrUY939E",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "smart-ai-interview-5249e.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "smart-ai-interview-5249e",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "smart-ai-interview-5249e.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "281265182713",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:281265182713:web:8281db9539a5a7ac774f28",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-566VXDDMDQ",
 };
 
 // Prevent duplicate initialization
