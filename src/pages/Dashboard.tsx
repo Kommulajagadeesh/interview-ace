@@ -268,67 +268,6 @@ export const Dashboard = () => {
             </h3>
           </button>
 
-          {/* Profile Dropdown Menu in Header */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="flex items-center gap-2 py-1 px-2 pr-3 bg-slate-100/90 hover:bg-slate-200/80 border border-slate-300/80 rounded-full transition-all cursor-pointer shadow-xs active:scale-95 group ml-1"
-                title="Profile & Account Settings"
-              >
-                <img
-                  className="w-8 h-8 rounded-full border-2 border-primary/40 object-cover shadow-xs"
-                  alt="Profile"
-                  src={profileImage}
-                />
-                <span className="text-xs font-extrabold text-slate-800 hidden sm:inline-block max-w-[110px] truncate">
-                  {userEmail ? userEmail.split("@")[0] : "Profile"}
-                </span>
-                <span className="material-symbols-outlined text-[18px] text-slate-500 group-hover:text-primary transition-transform">
-                  expand_more
-                </span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60 p-2 shadow-xl border-slate-200/80 rounded-2xl bg-white z-50">
-              <div className="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl mb-1 border border-slate-100">
-                <img
-                  className="w-10 h-10 rounded-full border-2 border-primary/40 object-cover shrink-0"
-                  alt="Profile"
-                  src={profileImage}
-                />
-                <div className="overflow-hidden">
-                  <p className="text-xs font-extrabold text-slate-900 truncate">
-                    {userEmail ? userEmail.split("@")[0] : "User Account"}
-                  </p>
-                  <p className="text-[11px] text-slate-500 truncate font-medium">
-                    {userEmail || "user@smartinterview.ai"}
-                  </p>
-                </div>
-              </div>
-              <DropdownMenuSeparator className="my-1" />
-              <DropdownMenuItem
-                onClick={() => navigate("/profile-setup")}
-                className="flex items-center gap-2.5 p-2.5 text-xs font-bold text-slate-700 hover:text-primary rounded-xl cursor-pointer hover:bg-slate-100"
-              >
-                <span className="material-symbols-outlined text-[18px] text-slate-500">person</span>
-                <span>Edit Profile</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => navigate("/profile-setup")}
-                className="flex items-center gap-2.5 p-2.5 text-xs font-bold text-slate-700 hover:text-primary rounded-xl cursor-pointer hover:bg-slate-100"
-              >
-                <span className="material-symbols-outlined text-[18px] text-slate-500">settings</span>
-                <span>Account Settings</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator className="my-1" />
-              <DropdownMenuItem
-                onClick={handleLogout}
-                className="flex items-center gap-2.5 p-2.5 text-xs font-extrabold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl cursor-pointer transition-colors"
-              >
-                <span className="material-symbols-outlined text-[18px] text-rose-600">logout</span>
-                <span>Sign Out / Log Out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </header>
 
