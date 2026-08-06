@@ -2321,96 +2321,225 @@ const ExamArea = () => {
       {/* -------------------------------------------------------------
           STUDENT SUBMITTED / SCORE PAGE
           ------------------------------------------------------------- */}
-      {mode === "student_submitted" && activeSession && (
-        <Card className="max-w-xl mx-auto w-full bg-card/50 backdrop-blur-md border border-border/50 shadow-2xl text-center">
-          <CardHeader>
-            <div className="p-3 bg-success/10 rounded-full w-fit mx-auto text-success border border-success/20 mb-2">
-              <CheckCircle className="w-8 h-8" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Exam Submitted</CardTitle>
-            <CardDescription className="text-xs">
-              Your exam paper has been securely recorded in the registry database.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            
-            {/* Quick stats box */}
-            <div className="p-4 bg-secondary/40 rounded-lg border border-border/50 text-xs space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground font-semibold">Exam Category:</span>
-                <span className="font-bold">{activeSession.category}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground font-semibold">Total Questions:</span>
-                <span className="font-bold">{activeSession.questions.length}</span>
-              </div>
-              
-              {activeSession.examType === "mcq" && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground font-semibold">Your Final Score:</span>
-                  <span className="font-bold text-primary text-sm">
-                    {student ? getStudentScore(student, activeSession) : 0} / {activeSession.questions.length}
-                  </span>
-                </div>
-              )}
+      {/* -------------------------------------------------------------
+          STUDENT SUBMITTED / SCORE PAGE (LIVE EXAM RESULTS)
+          ------------------------------------------------------------- */}
+      {mode === "student_submitted" && activeSession && (() => {
+        const answersToUse = student?.answers || studentAnswers;
+        const totalQuestions = activeSession.questions.length;
+        
+        let score = 0;
+        let correctCount = 0;
+        let incorrectCount = 0;
+        let unansweredCount = 0;
 
-              <div className="flex justify-between">
-                <span className="text-muted-foreground font-semibold">Anti-Cheat Verdict:</span>
-                <span className="font-bold text-success flex items-center gap-1">
-                  <Shield className="w-3.5 h-3.5" /> Checked & Clean
-                </span>
-              </div>
-            </div>
+        if (activeSession.examType === "mcq") {
+          activeSession.questions.forEach((q: any, idx) => {
+            const userAns = answersToUse[idx];
+            if (userAns === undefined || userAns === null || userAns === -1) {
+              unansweredCount++;
+            } else if (userAns === q.correctOption) {
+              correctCount++;
+            } else {
+              incorrectCount++;
+            }
+          });
+          score = correctCount;
+        } else {
+          score = answersToUse.filter((ans) => typeof ans === "string" && ans.trim().length > 0).length;
+          correctCount = score;
+          unansweredCount = totalQuestions - score;
+        }
 
-            {/* Answer Corrections (if enabled by examiner) */}
-            {activeSession.examType === "mcq" && activeSession.showAnswersAfterExam && student && (
-              <div className="space-y-3 pt-2 text-left">
-                <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                  Answer Keys & Corrections:
+        const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
+        const candidateName = student?.name || studentName || "Candidate";
+        const candidateEmail = student?.email || currentStudentEmail || "candidate@example.com";
+        const warningsCount = student?.warnings ?? studentWarnings ?? 0;
+
+        const getGradeBadge = (pct: number) => {
+          if (pct >= 80) return { label: "Outstanding", color: "bg-success/20 text-success border-success/30" };
+          if (pct >= 60) return { label: "Passed", color: "bg-primary/20 text-primary border-primary/30" };
+          return { label: "Needs Improvement", color: "bg-amber-500/20 text-amber-500 border-amber-500/30" };
+        };
+
+        const grade = getGradeBadge(percentage);
+
+        return (
+          <div className="max-w-3xl mx-auto w-full space-y-6">
+            <Card className="bg-card/60 backdrop-blur-md border border-border/50 shadow-2xl overflow-hidden">
+              <CardHeader className="text-center pb-4 border-b border-border/40 bg-secondary/10">
+                <div className="p-3 bg-success/15 rounded-full w-fit mx-auto text-success border border-success/30 mb-2 shadow-sm">
+                  <Trophy className="w-8 h-8" />
                 </div>
-                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                  {activeSession.questions.map((q: any, idx) => {
-                    const candidateAns = student.answers[idx];
-                    const correctAns = q.correctOption;
-                    const isCorrect = candidateAns === correctAns;
-                    
-                    return (
-                      <div key={idx} className="p-3 bg-secondary/20 rounded-xl border border-border/40 text-xs space-y-1.5">
-                        <div className="font-bold flex items-center gap-1">
-                          <span>Q{idx + 1}. {q.text}</span>
-                          {isCorrect ? (
-                            <CheckCircle className="w-3.5 h-3.5 text-success shrink-0" />
-                          ) : (
-                            <XCircle className="w-3.5 h-3.5 text-destructive shrink-0" />
-                          )}
-                        </div>
-                        <div className="space-y-1 text-muted-foreground font-semibold">
-                          <div className={`p-1.5 rounded flex justify-between ${
-                            isCorrect ? "bg-success/5 text-success border border-success/15" : "bg-destructive/5 text-destructive border border-destructive/15"
-                          }`}>
-                            <span>Your Answer: {candidateAns >= 0 ? q.options[candidateAns] : "No Answer Selected"}</span>
-                          </div>
-                          {!isCorrect && (
-                            <div className="p-1.5 rounded bg-success/5 text-success border border-success/15 flex justify-between">
-                              <span>Correct Answer: {q.options[correctAns]}</span>
+                <CardTitle className="text-2xl sm:text-3xl font-extrabold tracking-tight">Exam Results & Performance Report</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">
+                  Official report generated for <strong className="text-foreground">{candidateName}</strong> ({candidateEmail})
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="p-6 space-y-6">
+                
+                {/* Score Summary Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                  <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 flex flex-col justify-center items-center">
+                    <span className="text-[10px] font-extrabold uppercase text-primary tracking-wider">Final Score</span>
+                    <div className="text-2xl sm:text-3xl font-black text-primary mt-1">
+                      {score} <span className="text-sm font-normal text-muted-foreground">/ {totalQuestions}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-card border border-border/50 flex flex-col justify-center items-center">
+                    <span className="text-[10px] font-extrabold uppercase text-muted-foreground tracking-wider">Percentage</span>
+                    <div className="text-2xl sm:text-3xl font-black text-foreground mt-1">
+                      {percentage}%
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-card border border-border/50 flex flex-col justify-center items-center">
+                    <span className="text-[10px] font-extrabold uppercase text-muted-foreground tracking-wider">Verdict Grade</span>
+                    <span className={`mt-2 px-2.5 py-1 rounded-full text-xs font-black border uppercase ${grade.color}`}>
+                      {grade.label}
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-card border border-border/50 flex flex-col justify-center items-center">
+                    <span className="text-[10px] font-extrabold uppercase text-muted-foreground tracking-wider">Anti-Cheat Audit</span>
+                    <div className="text-xs font-bold text-success flex items-center gap-1 mt-2">
+                      <Shield className="w-4 h-4 text-success" />
+                      {warningsCount === 0 ? "Clean (0/3)" : `${warningsCount} Warning(s)`}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="space-y-1.5 text-left">
+                  <div className="flex justify-between text-xs font-bold">
+                    <span>Performance Rating</span>
+                    <span className="text-primary">{percentage}% Complete</span>
+                  </div>
+                  <div className="w-full h-3 bg-secondary/50 rounded-full overflow-hidden border border-border/40 p-0.5">
+                    <div 
+                      className="h-full bg-gradient-to-r from-primary to-success rounded-full transition-all duration-500" 
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Breakdown Stats Bar */}
+                {activeSession.examType === "mcq" && (
+                  <div className="grid grid-cols-3 gap-3 text-xs text-center pt-1">
+                    <div className="p-2.5 rounded-lg bg-success/10 border border-success/20 text-success font-bold">
+                      ✓ Correct: {correctCount}
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive font-bold">
+                      ✗ Incorrect: {incorrectCount}
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-secondary/40 border border-border/40 text-muted-foreground font-bold">
+                      ? Unanswered: {unansweredCount}
+                    </div>
+                  </div>
+                )}
+
+                {/* Detailed Questions Review */}
+                <div className="space-y-4 pt-2 text-left">
+                  <div className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-primary" /> Comprehensive Paper Review & Correct Answers
+                    </span>
+                    <span className="text-[10px] text-primary font-bold">{totalQuestions} Questions</span>
+                  </div>
+
+                  <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+                    {activeSession.questions.map((q: any, idx: number) => {
+                      const userAns = answersToUse[idx];
+
+                      if (activeSession.examType === "coding") {
+                        const codeWritten = typeof userAns === "string" ? userAns : "";
+                        const hasCode = codeWritten.trim().length > 0;
+                        return (
+                          <div key={idx} className="p-4 rounded-xl border border-border/50 bg-secondary/15 space-y-2">
+                            <div className="flex justify-between items-start gap-2">
+                              <span className="text-xs font-bold text-primary">Problem {idx + 1}: {q.text}</span>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                hasCode ? "bg-success/15 text-success border border-success/30" : "bg-destructive/15 text-destructive border border-destructive/30"
+                              }`}>
+                                {hasCode ? "Code Submitted" : "No Code Written"}
+                              </span>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+                            <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg font-mono text-xs text-slate-100 whitespace-pre overflow-x-auto">
+                              {hasCode ? codeWritten : "# No submission provided for this problem"}
+                            </div>
+                          </div>
+                        );
+                      } else {
+                        // MCQ Breakdown
+                        const mcq = q as MCQQuestion;
+                        const isCorrect = userAns === mcq.correctOption;
+                        const isUnanswered = userAns === undefined || userAns === null || userAns === -1;
 
-          </CardContent>
-          <CardFooter className="pt-2">
-            <Button className="w-full font-semibold" onClick={() => setMode("select")}>
-              Return to Hall Selector
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
+                        return (
+                          <div key={idx} className="p-4 rounded-xl border border-border/50 bg-secondary/15 space-y-3 text-xs">
+                            <div className="font-bold flex items-start justify-between gap-2">
+                              <span className="text-foreground leading-relaxed">Q{idx + 1}. {mcq.text}</span>
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                                isCorrect ? "bg-success/20 text-success border border-success/30" :
+                                isUnanswered ? "bg-secondary text-muted-foreground border border-border" :
+                                "bg-destructive/20 text-destructive border border-destructive/30"
+                              }`}>
+                                {isCorrect ? "✓ CORRECT" : isUnanswered ? "NOT ANSWERED" : "✗ INCORRECT"}
+                              </span>
+                            </div>
+
+                            {/* Options List */}
+                            <div className="space-y-1.5 pt-1">
+                              {mcq.options.map((option: string, optIdx: number) => {
+                                const isUserSelected = userAns === optIdx;
+                                const isRightAnswer = mcq.correctOption === optIdx;
+
+                                let optionStyle = "bg-card/50 border-border/40 text-muted-foreground";
+                                if (isRightAnswer) {
+                                  optionStyle = "bg-success/15 border-success/40 text-success font-bold";
+                                } else if (isUserSelected && !isRightAnswer) {
+                                  optionStyle = "bg-destructive/15 border-destructive/40 text-destructive font-bold";
+                                }
+
+                                return (
+                                  <div key={optIdx} className={`p-2.5 rounded-lg border flex items-center justify-between transition-all ${optionStyle}`}>
+                                    <span>{option}</span>
+                                    {isRightAnswer && <CheckCircle className="w-4 h-4 text-success shrink-0" />}
+                                    {isUserSelected && !isRightAnswer && <XCircle className="w-4 h-4 text-destructive shrink-0" />}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      }
+                    })}
+                  </div>
+                </div>
+
+              </CardContent>
+
+              <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border/40 bg-secondary/10">
+                <Button 
+                  variant="outline" 
+                  className="w-full sm:w-1/2 font-semibold" 
+                  onClick={() => window.print()}
+                >
+                  <Download className="w-4 h-4 mr-1.5" /> Save / Print Result Report
+                </Button>
+                <Button 
+                  className="w-full sm:w-1/2 font-semibold" 
+                  onClick={() => setMode("select")}
+                >
+                  Return to Exam Area <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        );
+      })()}
 
     </div>
   );
