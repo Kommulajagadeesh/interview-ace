@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Home, Video, BarChart2, Settings, LogOut, Moon, Sun, Monitor, Shield } from "lucide-react";
+import { Home, Video, BarChart2, Settings, LogOut, Moon, Sun, Monitor, Shield, ChevronRight } from "lucide-react";
 import { clearUserAuth, getCurrentUserEmail, getSelfieKey } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/ThemeProvider";
@@ -115,30 +115,46 @@ const Sidebar = () => {
 
         {/* User Profile */}
         <div className="bg-secondary/30 rounded-xl p-3 border border-border/50">
-          <div 
-            className="flex items-center gap-3 mb-3 cursor-pointer hover:bg-secondary/50 p-1.5 rounded-lg transition-colors group"
-            onClick={() => navigate("/profile-setup")}
-            title="Click to view or edit your profile"
-          >
-            <div className="w-10 h-10 rounded-full overflow-hidden border border-border bg-primary/10 flex items-center justify-center text-primary font-bold text-base shrink-0">
-              {selfieUrl ? (
-                <img src={selfieUrl} alt="Profile" className="w-full h-full object-cover" />
-              ) : (
-                getCurrentUserEmail()?.charAt(0).toUpperCase() || "U"
-              )}
-            </div>
-            <div className="overflow-hidden flex-1">
-              <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                {getCurrentUserEmail() || "User"}
-              </p>
-              <p className="text-xs text-primary underline mt-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div 
+                className="flex items-center gap-3 mb-3 cursor-pointer hover:bg-secondary/60 p-1.5 rounded-lg transition-colors group"
+                title="Click profile for options & Sign Out"
+              >
+                <div className="w-10 h-10 rounded-full overflow-hidden border border-border bg-primary/10 flex items-center justify-center text-primary font-bold text-base shrink-0">
+                  {selfieUrl ? (
+                    <img src={selfieUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    getCurrentUserEmail()?.charAt(0).toUpperCase() || "U"
+                  )}
+                </div>
+                <div className="overflow-hidden flex-1">
+                  <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                    {getCurrentUserEmail() || "User"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1 group-hover:text-primary">
+                    Profile & Options <ChevronRight className="w-3 h-3 inline" />
+                  </p>
+                </div>
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52 p-2 shadow-xl rounded-xl">
+              <DropdownMenuItem onClick={() => navigate("/profile-setup")} className="cursor-pointer font-medium text-xs">
                 Edit Profile
-              </p>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" className="w-full text-xs h-8" onClick={handleLogout}>
-            <LogOut className="w-3 h-3 mr-2" />
-            Log Out
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/profile-setup")} className="cursor-pointer font-medium text-xs">
+                Account Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer font-semibold text-xs text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/50">
+                <LogOut className="w-3.5 h-3.5 mr-2" />
+                Sign Out / Log Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button variant="outline" size="sm" className="w-full text-xs h-8 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900/50" onClick={handleLogout}>
+            <LogOut className="w-3.5 h-3.5 mr-2" />
+            Sign Out
           </Button>
         </div>
       </div>

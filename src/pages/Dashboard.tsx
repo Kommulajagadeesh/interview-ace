@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { getCurrentUserEmail, getSelfieKey, syncInterviewSessionsFromDatabase, getInterviewResultsKey } from "@/lib/auth";
+import { getCurrentUserEmail, getSelfieKey, syncInterviewSessionsFromDatabase, getInterviewResultsKey, clearUserAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import LeaderboardRankings from "@/components/LeaderboardRankings";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface SessionData {
   date: string;
@@ -24,6 +31,12 @@ export const Dashboard = () => {
   const isExamAreaActive = currentPath === "/exam-area";
   const isInterviewActive = currentPath === "/interview";
   const [userEmail, setUserEmail] = useState<string>("venkateshpolarathi5@gmail.com");
+
+  const handleLogout = () => {
+    clearUserAuth();
+    toast.success("Signed out successfully");
+    navigate("/login");
+  };
   const [profileImage, setProfileImage] = useState<string>(
     "https://lh3.googleusercontent.com/aida-public/AB6AXuDAm28F6Nv23C2UBLZUa24Hi_ib1sGC1jbUp1Vtkszto4Qy6f5U5z2j2Rn4EMn7f7OY3AYQiw2HLHvHTz_CiEBwUUixXq-cnjtnEbx-sUXtX2Kk5UhoYwaf8YFH43yi2GZHLToFLCy43ldyXlo1NXDBTA6RufgRflx5HDHGFjXX4k9yhOzSZqwtTfHOoAVE4QVwerOuaRBkbVte8XATJ6grFpIa96b0ZzhPoY0YIcf-JcSgKWcRzoJK"
   );
@@ -254,6 +267,68 @@ export const Dashboard = () => {
               Create Interview
             </h3>
           </button>
+
+          {/* Profile Dropdown Menu in Header */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="flex items-center gap-2 py-1 px-2 pr-3 bg-slate-100/90 hover:bg-slate-200/80 border border-slate-300/80 rounded-full transition-all cursor-pointer shadow-xs active:scale-95 group ml-1"
+                title="Profile & Account Settings"
+              >
+                <img
+                  className="w-8 h-8 rounded-full border-2 border-primary/40 object-cover shadow-xs"
+                  alt="Profile"
+                  src={profileImage}
+                />
+                <span className="text-xs font-extrabold text-slate-800 hidden sm:inline-block max-w-[110px] truncate">
+                  {userEmail ? userEmail.split("@")[0] : "Profile"}
+                </span>
+                <span className="material-symbols-outlined text-[18px] text-slate-500 group-hover:text-primary transition-transform">
+                  expand_more
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60 p-2 shadow-xl border-slate-200/80 rounded-2xl bg-white z-50">
+              <div className="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl mb-1 border border-slate-100">
+                <img
+                  className="w-10 h-10 rounded-full border-2 border-primary/40 object-cover shrink-0"
+                  alt="Profile"
+                  src={profileImage}
+                />
+                <div className="overflow-hidden">
+                  <p className="text-xs font-extrabold text-slate-900 truncate">
+                    {userEmail ? userEmail.split("@")[0] : "User Account"}
+                  </p>
+                  <p className="text-[11px] text-slate-500 truncate font-medium">
+                    {userEmail || "user@smartinterview.ai"}
+                  </p>
+                </div>
+              </div>
+              <DropdownMenuSeparator className="my-1" />
+              <DropdownMenuItem
+                onClick={() => navigate("/profile-setup")}
+                className="flex items-center gap-2.5 p-2.5 text-xs font-bold text-slate-700 hover:text-primary rounded-xl cursor-pointer hover:bg-slate-100"
+              >
+                <span className="material-symbols-outlined text-[18px] text-slate-500">person</span>
+                <span>Edit Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => navigate("/profile-setup")}
+                className="flex items-center gap-2.5 p-2.5 text-xs font-bold text-slate-700 hover:text-primary rounded-xl cursor-pointer hover:bg-slate-100"
+              >
+                <span className="material-symbols-outlined text-[18px] text-slate-500">settings</span>
+                <span>Account Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="my-1" />
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="flex items-center gap-2.5 p-2.5 text-xs font-extrabold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl cursor-pointer transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px] text-rose-600">logout</span>
+                <span>Sign Out / Log Out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
@@ -569,19 +644,66 @@ export const Dashboard = () => {
             <div className="w-2 h-2 bg-primary rounded-full status-pulse"></div>
             <span className="text-xs font-bold">AI Coach Active</span>
           </div>
-          <div
-            className="flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity"
-            onClick={() => navigate("/profile-setup")}
-          >
-            <img
-              className="w-7 h-7 rounded-full border-2 border-primary/30 object-cover shadow-xs"
-              alt="Profile"
-              src={profileImage}
-            />
-            <span className="text-xs font-bold text-slate-800 hidden sm:inline truncate max-w-[140px]">
-              {userEmail ? userEmail.split("@")[0] : "Alex Rivera"}
-            </span>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div
+                className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 py-1 px-2.5 rounded-full border border-slate-200 transition-all shadow-xs active:scale-95 group"
+                title="Profile & Sign Out"
+              >
+                <img
+                  className="w-7 h-7 rounded-full border-2 border-primary/30 object-cover shadow-xs"
+                  alt="Profile"
+                  src={profileImage}
+                />
+                <span className="text-xs font-extrabold text-slate-800 hidden sm:inline truncate max-w-[140px]">
+                  {userEmail ? userEmail.split("@")[0] : "Profile"}
+                </span>
+                <span className="material-symbols-outlined text-[16px] text-slate-500 group-hover:text-primary">
+                  expand_more
+                </span>
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 p-2 shadow-xl border-slate-200/80 rounded-2xl bg-white z-50 mb-2">
+              <div className="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl mb-1 border border-slate-100">
+                <img
+                  className="w-9 h-9 rounded-full border-2 border-primary/40 object-cover shrink-0"
+                  alt="Profile"
+                  src={profileImage}
+                />
+                <div className="overflow-hidden">
+                  <p className="text-xs font-extrabold text-slate-900 truncate">
+                    {userEmail ? userEmail.split("@")[0] : "User Account"}
+                  </p>
+                  <p className="text-[11px] text-slate-500 truncate font-medium">
+                    {userEmail || "user@smartinterview.ai"}
+                  </p>
+                </div>
+              </div>
+              <DropdownMenuSeparator className="my-1" />
+              <DropdownMenuItem
+                onClick={() => navigate("/profile-setup")}
+                className="flex items-center gap-2.5 p-2.5 text-xs font-bold text-slate-700 hover:text-primary rounded-xl cursor-pointer hover:bg-slate-100"
+              >
+                <span className="material-symbols-outlined text-[18px] text-slate-500">person</span>
+                <span>Edit Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => navigate("/profile-setup")}
+                className="flex items-center gap-2.5 p-2.5 text-xs font-bold text-slate-700 hover:text-primary rounded-xl cursor-pointer hover:bg-slate-100"
+              >
+                <span className="material-symbols-outlined text-[18px] text-slate-500">settings</span>
+                <span>Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="my-1" />
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="flex items-center gap-2.5 p-2.5 text-xs font-extrabold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl cursor-pointer transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px] text-rose-600">logout</span>
+                <span>Sign Out / Log Out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </footer>
 
