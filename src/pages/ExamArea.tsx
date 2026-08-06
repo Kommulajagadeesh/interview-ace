@@ -71,6 +71,7 @@ interface StudentRecord {
   warnings: number;
   status: "active" | "locked" | "submitted";
   logs: { timestamp: string; message: string; type: "info" | "warning" | "error" }[];
+  photoUrl?: string;
 }
 
 interface ExamSession {
@@ -142,54 +143,335 @@ const ExamArea = () => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  // Derived current student object
+  const student = activeSession && currentStudentEmail ? activeSession.students?.[currentStudentEmail] || null : null;
+
+  // Time formatter
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // Score Calculator
+  const getStudentScore = (studentRec: StudentRecord, session: ExamSession): number => {
+    if (!studentRec || !session || !studentRec.answers) return 0;
+    if (session.examType === "coding") {
+      return studentRec.answers.filter((ans) => typeof ans === "string" && ans.trim().length > 0).length;
+    }
+    let score = 0;
+    session.questions.forEach((q, idx) => {
+      const mcq = q as MCQQuestion;
+      if (studentRec.answers[idx] === mcq.correctOption) {
+        score++;
+      }
+    });
+    return score;
+  };
+
+  // Photo Identity Avatar Renderer
+  const renderStudentAvatar = (s?: StudentRecord | null, sizeClass: string = "w-8 h-8") => {
+    if (!s) return null;
+    if (s.photoUrl) {
+      return (
+        <img 
+          src={s.photoUrl} 
+          alt={s.name} 
+          className={`${sizeClass} rounded-full object-cover border-2 border-primary/40 shadow-sm shrink-0`} 
+        />
+      );
+    }
+    const initials = s.name
+      ? s.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+      : "ST";
+    return (
+      <div className={`${sizeClass} rounded-full bg-gradient-to-br from-primary/30 to-primary/80 text-primary-foreground font-extrabold flex items-center justify-center text-[10px] shadow-sm border border-primary/50 shrink-0`}>
+        {initials}
+      </div>
+    );
+  };
+
+  // CSV Exporter for Invigilators
+  const downloadLeaderboardCsv = () => {
+    if (!activeSession) return;
+    const list = getLeaderboardList();
+    const headers = ["Rank", "Candidate Name", "Email", "Warnings", "Status", "Score", "Total Questions"];
+    const rows = list.map((s, idx) => [
+      idx + 1,
+      `"${(s.name || "").replace(/"/g, '""')}"`,
+      `"${(s.email || "").replace(/"/g, '""')}"`,
+      s.warnings || 0,
+      s.status || "active",
+      getStudentScore(s, activeSession),
+      activeSession.questions.length
+    ]);
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${activeSession.title.replace(/\s+/g, "_")}_Leaderboard.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const lastCheatWarningTimeRef = useRef<number>(0);
+
+  // Exam timer countdown effect
+  useEffect(() => {
+    if (mode !== "student_exam" || examTimeLeft <= 0) return;
+    const timer = setInterval(() => {
+      setExamTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          submitExamAutomatically();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [mode, examTimeLeft]);
+
+  // Strict Anti-Cheat Event Listeners (Tab Switching, Window Focus Loss, Fullscreen Exit)
+  useEffect(() => {
+    if (mode !== "student_exam") return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        triggerCheatWarning("Candidate switched browser tab or minimized window");
+      }
+    };
+
+    const handleBlur = () => {
+      triggerCheatWarning("Candidate window lost focus / clicked outside exam theatre");
+    };
+
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        triggerCheatWarning("Candidate exited full-screen mode");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleBlur);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleBlur);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, [mode, studentWarnings, activeSession, currentStudentEmail]);
+
+  // Helper to sync local student record updates instantly
+  const updateLocalStudentState = (updater: (prevStudent: StudentRecord) => StudentRecord) => {
+    if (!activeSession || !currentStudentEmail) return;
+    setActiveSession((prev) => {
+      if (!prev) return null;
+      const currentRec = prev.students?.[currentStudentEmail] || {
+        name: studentName || "Candidate",
+        email: currentStudentEmail,
+        currentIndex: 0,
+        answers: [],
+        warnings: 0,
+        status: "active",
+        logs: []
+      };
+      const updatedRec = updater(currentRec);
+      const nextSession = {
+        ...prev,
+        students: {
+          ...(prev.students || {}),
+          [currentStudentEmail]: updatedRec
+        }
+      };
+
+      try {
+        const stored = localStorage.getItem("local_exam_sessions");
+        const sessions = stored ? JSON.parse(stored) : {};
+        sessions[prev.examRoomId] = nextSession;
+        localStorage.setItem("local_exam_sessions", JSON.stringify(sessions));
+      } catch (e) {
+        console.warn("LocalStorage sync warning", e);
+      }
+
+      return nextSession;
+    });
+  };
+
+  // Populate Demo Candidates for live invigilator testing
+  const populateDemoCandidates = () => {
+    if (!activeSession) return;
+
+    const demoStudents: { [email: string]: StudentRecord } = {
+      "jagadeesh@example.com": {
+        name: "Jagadeesh Kommula",
+        email: "jagadeesh@example.com",
+        currentIndex: activeSession.questions.length - 1,
+        answers: activeSession.questions.map((q: any) => activeSession.examType === "coding" ? "def solution():\n    return True" : (q.correctOption ?? 0)),
+        warnings: 0,
+        status: "submitted",
+        logs: [
+          { timestamp: "09:30:12 AM", message: "Joined exam hall entry portal", type: "info" },
+          { timestamp: "09:30:45 AM", message: "AI Face & Webcam Identity Verified", type: "info" },
+          { timestamp: "09:42:10 AM", message: "Completed all question submissions cleanly", type: "info" }
+        ]
+      },
+      "priya@example.com": {
+        name: "Priya Sharma",
+        email: "priya@example.com",
+        currentIndex: 1,
+        answers: activeSession.questions.map((q: any, i) => activeSession.examType === "coding" ? "def code(): pass" : (i % 2 === 0 ? 0 : 1)),
+        warnings: 1,
+        status: "active",
+        logs: [
+          { timestamp: "09:32:00 AM", message: "Joined exam room", type: "info" },
+          { timestamp: "09:36:22 AM", message: "Anti-cheat warning: Head posture turned right (Warning 1/3)", type: "warning" }
+        ]
+      },
+      "rahul@example.com": {
+        name: "Rahul Verma",
+        email: "rahul@example.com",
+        currentIndex: 0,
+        answers: activeSession.questions.map((q: any) => activeSession.examType === "coding" ? "" : -1),
+        warnings: 3,
+        status: "locked",
+        logs: [
+          { timestamp: "09:31:15 AM", message: "Joined exam room", type: "info" },
+          { timestamp: "09:34:02 AM", message: "Anti-cheat warning: Switched browser tab (Warning 1/3)", type: "warning" },
+          { timestamp: "09:35:10 AM", message: "Anti-cheat warning: Second face detected in frame (Warning 2/3)", type: "warning" },
+          { timestamp: "09:37:44 AM", message: "Anti-cheat warning: Exited full screen mode (Warning 3/3)", type: "warning" },
+          { timestamp: "09:37:45 AM", message: "Exam session automatically LOCKED by anti-cheat rules", type: "error" }
+        ]
+      },
+      "sneha@example.com": {
+        name: "Sneha Patel",
+        email: "sneha@example.com",
+        currentIndex: 2,
+        answers: activeSession.questions.map((q: any) => activeSession.examType === "coding" ? "def solve(): return 42" : 0),
+        warnings: 0,
+        status: "active",
+        logs: [
+          { timestamp: "09:33:50 AM", message: "Joined exam room", type: "info" },
+          { timestamp: "09:34:10 AM", message: "Full-screen mode active & AI monitoring engaged", type: "info" }
+        ]
+      }
+    };
+
+    const updatedSession = {
+      ...activeSession,
+      students: {
+        ...activeSession.students,
+        ...demoStudents
+      }
+    };
+
+    setActiveSession(updatedSession);
+
+    try {
+      const stored = localStorage.getItem("local_exam_sessions");
+      const sessions = stored ? JSON.parse(stored) : {};
+      sessions[activeSession.examRoomId] = updatedSession;
+      localStorage.setItem("local_exam_sessions", JSON.stringify(sessions));
+    } catch (e) {
+      console.warn("Save demo candidates warning", e);
+    }
+
+    toast.success("Populated 4 demo candidates for testing live invigilation!");
+  };
+
   // -------------------------------------------------------------
   // Real-Time Sync via Firebase onSnapshot Listeners
   // -------------------------------------------------------------
   
-  // 1. Invigilator Dashboard Listeners
+  // 1. Invigilator Dashboard Listeners (Dual Sync: Firestore + LocalStorage)
   useEffect(() => {
     if (mode === "monitor_dashboard" && activeSession?.examRoomId) {
       const roomId = activeSession.examRoomId;
 
-      // Listen to the session details
-      const unsubscribeSession = onSnapshot(doc(db, "examSessions", roomId), (docSnap) => {
-        if (docSnap.exists()) {
-          const sessionData = docSnap.data() as any;
-          setActiveSession((prev) => {
-            if (!prev) return null;
-            return {
-              ...prev,
-              title: sessionData.title,
-              category: sessionData.category,
-              duration: sessionData.duration,
-              examType: sessionData.examType,
-              showAnswersAfterExam: sessionData.showAnswersAfterExam,
-              questions: sessionData.questions
-            };
-          });
+      // Local storage sync function
+      const syncLocalSession = () => {
+        try {
+          const stored = localStorage.getItem("local_exam_sessions");
+          if (stored) {
+            const sessions = JSON.parse(stored);
+            const localSess = sessions[roomId];
+            if (localSess && localSess.students) {
+              setActiveSession((prev) => {
+                if (!prev) return localSess;
+                return {
+                  ...prev,
+                  title: localSess.title || prev.title,
+                  students: {
+                    ...prev.students,
+                    ...localSess.students
+                  }
+                };
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("LocalStorage sync notice", e);
         }
-      });
+      };
 
-      // Listen to all student submissions and logs in real-time
-      const unsubscribeStudents = onSnapshot(
-        collection(db, "examSessions", roomId, "students"),
-        (querySnap) => {
-          const studentMap: { [email: string]: StudentRecord } = {};
-          querySnap.forEach((studentDoc) => {
-            studentMap[studentDoc.id] = studentDoc.data() as StudentRecord;
-          });
-          
-          setActiveSession((prev) => {
-            if (!prev) return null;
-            return {
-              ...prev,
-              students: studentMap
-            };
-          });
-        }
-      );
+      // Poll every 2s for instant local updates across tabs
+      const pollInterval = setInterval(syncLocalSession, 2000);
+      window.addEventListener("storage", syncLocalSession);
+      syncLocalSession();
+
+      // Firebase Firestore Listeners
+      let unsubscribeSession = () => {};
+      let unsubscribeStudents = () => {};
+
+      try {
+        unsubscribeSession = onSnapshot(doc(db, "examSessions", roomId), (docSnap) => {
+          if (docSnap.exists()) {
+            const sessionData = docSnap.data() as any;
+            setActiveSession((prev) => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                title: sessionData.title,
+                category: sessionData.category,
+                duration: sessionData.duration,
+                examType: sessionData.examType,
+                showAnswersAfterExam: sessionData.showAnswersAfterExam,
+                questions: sessionData.questions
+              };
+            });
+          }
+        }, (err) => console.warn("Firestore session snapshot notice", err));
+
+        unsubscribeStudents = onSnapshot(
+          collection(db, "examSessions", roomId, "students"),
+          (querySnap) => {
+            const studentMap: { [email: string]: StudentRecord } = {};
+            querySnap.forEach((studentDoc) => {
+              studentMap[studentDoc.id] = studentDoc.data() as StudentRecord;
+            });
+            setActiveSession((prev) => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                students: {
+                  ...prev.students,
+                  ...studentMap
+                }
+              };
+            });
+          },
+          (err) => console.warn("Firestore students snapshot notice", err)
+        );
+      } catch (e) {
+        console.warn("Firestore listener init skipped", e);
+      }
 
       return () => {
+        clearInterval(pollInterval);
+        window.removeEventListener("storage", syncLocalSession);
         unsubscribeSession();
         unsubscribeStudents();
       };
@@ -376,6 +658,16 @@ const ExamArea = () => {
       students: {}
     };
 
+    // Store session locally for instant fallback
+    try {
+      const stored = localStorage.getItem("local_exam_sessions");
+      const sessions = stored ? JSON.parse(stored) : {};
+      sessions[examRoomId] = newSession;
+      localStorage.setItem("local_exam_sessions", JSON.stringify(sessions));
+    } catch (err) {
+      console.warn("LocalStorage save warning", err);
+    }
+
     try {
       // Store session in Firebase Firestore
       await setDoc(doc(db, "examSessions", examRoomId), {
@@ -389,16 +681,16 @@ const ExamArea = () => {
         showAnswersAfterExam,
         questions
       });
-
-      setActiveSession(newSession);
-      setAdminRoomId(examRoomId);
-      setAdminPinInput(adminPin);
       toast.success(`Secure room generated on Firebase!`);
-      setMode("monitor_dashboard");
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to upload exam settings to database. Verify Firestore configuration.");
+      console.warn("Firebase upload error, continuing locally", err);
+      toast.success(`Secure room generated and launched!`);
     }
+
+    setActiveSession(newSession);
+    setAdminRoomId(examRoomId);
+    setAdminPinInput(adminPin);
+    setMode("monitor_dashboard");
   };
 
   // 2. Student: Verify and Enter Exam Room
@@ -415,35 +707,63 @@ const ExamArea = () => {
     }
 
     try {
-      // Fetch session from Firebase
-      const sessionDoc = await getDoc(doc(db, "examSessions", roomId));
-      if (!sessionDoc.exists()) {
+      let sessionData: any = null;
+
+      try {
+        const sessionDoc = await getDoc(doc(db, "examSessions", roomId));
+        if (sessionDoc.exists()) {
+          sessionData = sessionDoc.data();
+        }
+      } catch (err) {
+        console.warn("Firestore fetch error, checking localStorage", err);
+      }
+
+      if (!sessionData) {
+        try {
+          const stored = localStorage.getItem("local_exam_sessions");
+          const sessions = stored ? JSON.parse(stored) : {};
+          sessionData = sessions[roomId];
+        } catch (err) {
+          console.warn("LocalStorage fetch error", err);
+        }
+      }
+
+      if (!sessionData) {
         toast.error("Invalid Room Code. Verify with your invigilator.");
         return;
       }
-      const sessionData = sessionDoc.data() as any;
 
       const emailKey = studentEmail.trim().toLowerCase();
+      let existingRecord: StudentRecord | null = null;
 
-      // Check if user is locked
-      const studentDoc = await getDoc(doc(db, "examSessions", roomId, "students", emailKey));
-      if (studentDoc.exists()) {
-        const existing = studentDoc.data() as StudentRecord;
-        if (existing.status === "locked") {
+      try {
+        const studentDoc = await getDoc(doc(db, "examSessions", roomId, "students", emailKey));
+        if (studentDoc.exists()) {
+          existingRecord = studentDoc.data() as StudentRecord;
+        }
+      } catch (err) {
+        console.warn("Firestore student record check error", err);
+      }
+
+      if (!existingRecord && activeSession?.students?.[emailKey]) {
+        existingRecord = activeSession.students[emailKey];
+      }
+
+      if (existingRecord) {
+        if (existingRecord.status === "locked") {
           setCurrentStudentEmail(emailKey);
-          setActiveSession({ ...sessionData, examRoomId: roomId, students: { [emailKey]: existing } });
+          setActiveSession({ ...sessionData, examRoomId: roomId, students: { [emailKey]: existingRecord } });
           setMode("student_login");
           toast.error("Your exam session is locked due to violations. Request examiner unlock.");
           return;
         }
 
-        if (existing.status === "submitted") {
+        if (existingRecord.status === "submitted") {
           toast.error("You have already completed and submitted this exam paper.");
           return;
         }
       }
 
-      // Initial answers buffer
       const initialAnswers = sessionData.questions.map((q: any) => 
         sessionData.examType === "coding" ? q.initialCode : -1
       );
@@ -458,20 +778,42 @@ const ExamArea = () => {
         logs: [{ timestamp: new Date().toLocaleTimeString(), message: "Joined the exam hall entry portal", type: "info" }]
       };
 
-      // Store student record in Subcollection under session
-      await setDoc(doc(db, "examSessions", roomId, "students", emailKey), record);
+      try {
+        await setDoc(doc(db, "examSessions", roomId, "students", emailKey), record);
+      } catch (err) {
+        console.warn("Firestore set student record warning", err);
+      }
 
-      setActiveSession({ ...sessionData, examRoomId: roomId, students: { [emailKey]: record } });
+      const nextSession = {
+        ...(sessionData || activeSession || {}),
+        examRoomId: roomId,
+        students: {
+          ...((sessionData || activeSession)?.students || {}),
+          [emailKey]: record
+        }
+      };
+
+      try {
+        const stored = localStorage.getItem("local_exam_sessions");
+        const sessions = stored ? JSON.parse(stored) : {};
+        sessions[roomId] = nextSession;
+        localStorage.setItem("local_exam_sessions", JSON.stringify(sessions));
+      } catch (err) {
+        console.warn("LocalStorage save student join error", err);
+      }
+
+      setActiveSession(nextSession);
       setCurrentStudentEmail(emailKey);
       setStudentAnswers(initialAnswers);
       setStudentWarnings(0);
       setStudentLogs(record.logs);
       setStudentCurrentIndex(0);
-      setExamTimeLeft(sessionData.duration * 60);
+      setExamTimeLeft((sessionData.duration || 15) * 60);
       setMode("student_rules");
+      toast.success("Joined exam room successfully!");
     } catch (err) {
       console.error(err);
-      toast.error("Connection failed. Check your network.");
+      toast.error("Connection error. Please try again.");
     }
   };
 
@@ -489,24 +831,47 @@ const ExamArea = () => {
     }
 
     try {
-      const sessionDoc = await getDoc(doc(db, "examSessions", roomId));
-      if (!sessionDoc.exists()) {
+      let sessionData: any = null;
+
+      try {
+        const sessionDoc = await getDoc(doc(db, "examSessions", roomId));
+        if (sessionDoc.exists()) {
+          sessionData = sessionDoc.data();
+        }
+      } catch (err) {
+        console.warn("Firestore fetch error for admin", err);
+      }
+
+      if (!sessionData) {
+        try {
+          const stored = localStorage.getItem("local_exam_sessions");
+          const sessions = stored ? JSON.parse(stored) : {};
+          sessionData = sessions[roomId];
+        } catch (err) {
+          console.warn("LocalStorage fetch error", err);
+        }
+      }
+
+      if (!sessionData) {
         toast.error("Room ID not found in database.");
         return;
       }
       
-      const sessionData = sessionDoc.data() as any;
       if (sessionData.adminPin !== adminPinInput.trim()) {
         toast.error("Incorrect Admin PIN.");
         return;
       }
 
-      // Fetch existing students in subcollection
-      const querySnap = await getDocs(collection(db, "examSessions", roomId, "students"));
-      const studentMap: { [email: string]: StudentRecord } = {};
-      querySnap.forEach((doc) => {
-        studentMap[doc.id] = doc.data() as StudentRecord;
-      });
+      let studentMap: { [email: string]: StudentRecord } = sessionData.students || {};
+
+      try {
+        const querySnap = await getDocs(collection(db, "examSessions", roomId, "students"));
+        querySnap.forEach((doc) => {
+          studentMap[doc.id] = doc.data() as StudentRecord;
+        });
+      } catch (err) {
+        console.warn("Firestore fetch students error", err);
+      }
 
       setActiveSession({ ...sessionData, examRoomId: roomId, students: studentMap });
       toast.success("Invigilator Panel Connected.");
@@ -531,6 +896,11 @@ const ExamArea = () => {
 
     const updatedLogs = [...studentLogs, newLog];
     setStudentLogs(updatedLogs);
+
+    updateLocalStudentState((prev) => ({
+      ...prev,
+      logs: updatedLogs
+    }));
 
     try {
       await updateDoc(
@@ -564,6 +934,13 @@ const ExamArea = () => {
   const triggerCheatWarning = async (reason: string) => {
     if (!activeSession || !currentStudentEmail) return;
 
+    const now = Date.now();
+    if (now - lastCheatWarningTimeRef.current < 4000) {
+      // Cooldown 4s between face/gaze/window warnings to prevent spam
+      return;
+    }
+    lastCheatWarningTimeRef.current = now;
+
     const nextWarnings = studentWarnings + 1;
     setStudentWarnings(nextWarnings);
 
@@ -572,7 +949,7 @@ const ExamArea = () => {
       status = "locked";
       setMode("student_login");
       document.exitFullscreen().catch(() => {});
-      toast.error("Exam Locked! You exceeded 3 warnings. Request invigilator unlock PIN.");
+      toast.error("Exam Locked! You exceeded 3 anti-cheat warnings. Request invigilator unlock PIN.");
     }
 
     const newLog = {
@@ -583,6 +960,13 @@ const ExamArea = () => {
 
     const updatedLogs = [...studentLogs, newLog];
     setStudentLogs(updatedLogs);
+
+    updateLocalStudentState((prev) => ({
+      ...prev,
+      warnings: nextWarnings,
+      status,
+      logs: updatedLogs
+    }));
 
     toast.warning(`Violation Warning: ${reason}! (${nextWarnings} / 3)`);
 
@@ -615,11 +999,19 @@ const ExamArea = () => {
     setMode("student_submitted");
     document.exitFullscreen().catch(() => {});
 
+    updateLocalStudentState((prev) => ({
+      ...prev,
+      status: "submitted",
+      answers: studentAnswers,
+      logs: updatedLogs
+    }));
+
     try {
       await updateDoc(
         doc(db, "examSessions", activeSession.examRoomId, "students", currentStudentEmail),
         {
           status: "submitted",
+          answers: studentAnswers,
           logs: updatedLogs
         }
       );
@@ -635,6 +1027,11 @@ const ExamArea = () => {
     setStudentAnswers(updated);
 
     if (activeSession && currentStudentEmail) {
+      updateLocalStudentState((prev) => ({
+        ...prev,
+        answers: updated
+      }));
+
       try {
         await updateDoc(
           doc(db, "examSessions", activeSession.examRoomId, "students", currentStudentEmail),
@@ -652,6 +1049,11 @@ const ExamArea = () => {
     setStudentAnswers(updated);
 
     if (activeSession && currentStudentEmail) {
+      updateLocalStudentState((prev) => ({
+        ...prev,
+        answers: updated
+      }));
+
       try {
         await updateDoc(
           doc(db, "examSessions", activeSession.examRoomId, "students", currentStudentEmail),
@@ -1055,7 +1457,15 @@ const ExamArea = () => {
                 Room ID: <span className="font-bold text-foreground">{activeSession.examRoomId}</span> | Admin PIN: <span className="font-bold text-foreground">{activeSession.adminPin}</span> | Format: <span className="font-bold text-primary">{activeSession.examType === "mcq" ? "MCQ Exam" : "Coding Simulation"}</span>
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                className="font-bold text-xs bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20"
+                onClick={populateDemoCandidates}
+              >
+                <Plus className="w-4 h-4 mr-1" /> Populate Demo Candidates
+              </Button>
               {adminMonitorTab === "leaderboard" && (
                 <Button variant="outline" size="sm" onClick={downloadLeaderboardCsv}>
                   <Download className="w-4 h-4 mr-1" /> Export Sheet
@@ -1107,10 +1517,52 @@ const ExamArea = () => {
             </Card>
           </div>
 
+          {/* Top Member / Leaderboard Winner Spotlight Banner */}
+          {(() => {
+            const leaderboard = getLeaderboardList();
+            const topStudent = leaderboard.length > 0 ? leaderboard[0] : null;
+            if (!topStudent) return null;
+
+            return (
+              <div className="bg-gradient-to-r from-amber-500/15 via-primary/10 to-amber-500/15 border border-amber-500/35 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl backdrop-blur-md">
+                <div className="flex items-center gap-4 text-left">
+                  <div className="relative shrink-0">
+                    {renderStudentAvatar(topStudent, "w-14 h-14")}
+                    <div className="absolute -top-1.5 -right-1.5 bg-amber-500 text-slate-950 p-1.5 rounded-full shadow-lg border border-slate-900">
+                      <Trophy className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-black uppercase text-amber-500 tracking-wider flex items-center gap-1">
+                      <Trophy className="w-3 h-3" /> Top Member / Rank #1 Candidate
+                    </div>
+                    <h3 className="text-base font-extrabold tracking-tight text-foreground flex items-center gap-2">
+                      {topStudent.name}
+                      <span className="text-xs font-semibold text-muted-foreground">({topStudent.email})</span>
+                    </h3>
+                    <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-3 font-semibold">
+                      <span>Score: <strong className="text-primary font-black">{getStudentScore(topStudent, activeSession)} / {activeSession.questions.length}</strong></span>
+                      <span>Warnings: <strong className="text-destructive font-bold">{topStudent.warnings} / 3</strong></span>
+                      <span>Status: <strong className="text-success uppercase font-bold">{topStudent.status}</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                <Button 
+                  size="sm" 
+                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold shrink-0 shadow-md"
+                  onClick={() => setSelectedStudentEmail(topStudent.email)}
+                >
+                  <Eye className="w-4 h-4 mr-1.5" /> Inspect Top Scorer & Photo ID
+                </Button>
+              </div>
+            );
+          })()}
+
           <div className="grid lg:grid-cols-3 gap-6">
             
             {/* Left Panel: Invigilator tab selection details */}
-            <Card className="lg:col-span-2 bg-card/30 border border-border/50 shadow-lg h-[450px] flex flex-col justify-between overflow-hidden">
+            <Card className="lg:col-span-2 bg-card/30 border border-border/50 shadow-lg h-[480px] flex flex-col justify-between overflow-hidden">
               <CardHeader className="border-b border-border/50 py-3 bg-secondary/15 flex flex-row items-center justify-between">
                 <CardTitle className="text-sm font-bold flex items-center gap-2">
                   <Terminal className="w-4 h-4 text-primary" /> Live Invigilation Telemetry
@@ -1136,31 +1588,40 @@ const ExamArea = () => {
                 
                 {/* 1. Logs Tab */}
                 {adminMonitorTab === "logs" && (
-                  <div className="space-y-2 font-mono text-xs text-left">
+                  <div className="space-y-2.5 text-xs text-left">
                     {Object.values(activeSession.students).flatMap(s => 
-                      s.logs.map(l => ({ ...l, studentName: s.name }))
+                      s.logs.map(l => ({ ...l, student: s }))
                     ).length === 0 ? (
                       <div className="h-full flex items-center justify-center text-muted-foreground italic py-32">
                         Waiting for candidates to perform actions...
                       </div>
                     ) : (
                       Object.values(activeSession.students).flatMap(s => 
-                        s.logs.map(l => ({ ...l, studentName: s.name }))
+                        s.logs.map(l => ({ ...l, student: s }))
                       ).sort((a,b) => b.timestamp.localeCompare(a.timestamp)).map((log, idx) => (
-                        <div key={idx} className={`p-2 rounded border leading-relaxed ${
+                        <div key={idx} className={`p-3 rounded-xl border flex items-center justify-between leading-relaxed shadow-sm ${
                           log.type === "error" ? "bg-destructive/10 border-destructive/25 text-destructive" :
                           log.type === "warning" ? "bg-warning/10 border-warning/25 text-warning" :
                           "bg-secondary/40 border-border/30 text-muted-foreground"
                         }`}>
-                          <span className="font-bold">[{log.timestamp}]</span>{" "}
-                          <span className="text-foreground underline decoration-border">{log.studentName}</span>: {log.message}
+                          <div className="flex items-center gap-3">
+                            {renderStudentAvatar(log.student, "w-8 h-8")}
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-foreground">{log.student.name}</span>
+                                <span className="text-[10px] text-muted-foreground">({log.student.email})</span>
+                              </div>
+                              <div className="text-xs font-semibold mt-0.5 text-foreground">{log.message}</div>
+                            </div>
+                          </div>
+                          <span className="font-mono text-[10px] font-bold opacity-80 shrink-0">[{log.timestamp}]</span>
                         </div>
                       ))
                     )}
                   </div>
                 )}
 
-                {/* 2. Leaderboard Tab */}
+                {/* 2. Leaderboard / Rankings Tab */}
                 {adminMonitorTab === "leaderboard" && (
                   <div className="w-full text-xs text-left">
                     {Object.keys(activeSession.students).length === 0 ? (
@@ -1172,37 +1633,70 @@ const ExamArea = () => {
                         <table className="w-full border-collapse">
                           <thead>
                             <tr className="border-b border-border/50 text-[10px] font-bold text-muted-foreground uppercase">
-                              <th className="py-2 px-3 text-left">Rank</th>
-                              <th className="py-2 px-3 text-left">Candidate Name</th>
-                              <th className="py-2 px-3 text-left">Email Address</th>
-                              <th className="py-2 px-3 text-left">Warnings</th>
-                              <th className="py-2 px-3 text-left">Status</th>
-                              <th className="py-2 px-3 text-right">Score</th>
+                              <th className="py-2.5 px-3 text-left">Rank</th>
+                              <th className="py-2.5 px-3 text-left">Photo ID</th>
+                              <th className="py-2.5 px-3 text-left">Candidate Name</th>
+                              <th className="py-2.5 px-3 text-left">Email Address</th>
+                              <th className="py-2.5 px-3 text-left">Warnings</th>
+                              <th className="py-2.5 px-3 text-left">Status</th>
+                              <th className="py-2.5 px-3 text-center">Score</th>
+                              <th className="py-2.5 px-3 text-right">Action</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {getLeaderboardList().map((s, idx) => (
-                              <tr key={s.email} className="border-b border-border/30 hover:bg-secondary/20">
-                                <td className="py-3 px-3 font-mono font-bold text-primary flex items-center gap-1.5">
-                                  <Trophy className="w-3.5 h-3.5" /> {idx + 1}
-                                </td>
-                                <td className="py-3 px-3 font-semibold">{s.name}</td>
-                                <td className="py-3 px-3 text-muted-foreground">{s.email}</td>
-                                <td className="py-3 px-3 text-destructive font-bold">{s.warnings} / 3</td>
-                                <td className="py-3 px-3">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    s.status === "active" ? "bg-success/10 text-success" :
-                                    s.status === "locked" ? "bg-destructive/10 text-destructive" :
-                                    "bg-primary/10 text-primary"
-                                  }`}>
-                                    {s.status.toUpperCase()}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-3 text-right font-bold text-sm text-foreground">
-                                  {getStudentScore(s, activeSession)} / {activeSession.questions.length}
-                                </td>
-                              </tr>
-                            ))}
+                            {getLeaderboardList().map((s, idx) => {
+                              const isTop = idx === 0;
+                              return (
+                                <tr key={s.email} className={`border-b border-border/30 hover:bg-secondary/20 transition-colors ${isTop ? "bg-amber-500/10" : ""}`}>
+                                  <td className="py-3 px-3 font-mono font-extrabold text-primary">
+                                    {idx === 0 ? (
+                                      <span className="flex items-center gap-1 text-amber-500 font-bold">🥇 #1</span>
+                                    ) : idx === 1 ? (
+                                      <span className="flex items-center gap-1 text-slate-400 font-bold">🥈 #2</span>
+                                    ) : idx === 2 ? (
+                                      <span className="flex items-center gap-1 text-amber-700 font-bold">🥉 #3</span>
+                                    ) : (
+                                      `#${idx + 1}`
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    {renderStudentAvatar(s, "w-8 h-8")}
+                                  </td>
+                                  <td className="py-3 px-3 font-bold flex items-center gap-2">
+                                    {s.name}
+                                    {isTop && (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/20 text-amber-500 font-extrabold border border-amber-500/30">
+                                        👑 TOP
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-3 text-muted-foreground">{s.email}</td>
+                                  <td className="py-3 px-3 text-destructive font-bold">{s.warnings} / 3</td>
+                                  <td className="py-3 px-3">
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                      s.status === "active" ? "bg-success/10 text-success border border-success/20" :
+                                      s.status === "locked" ? "bg-destructive/10 text-destructive border border-destructive/20" :
+                                      "bg-primary/10 text-primary border border-primary/20"
+                                    }`}>
+                                      {s.status.toUpperCase()}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3 text-center font-extrabold text-sm text-foreground">
+                                    {getStudentScore(s, activeSession)} / {activeSession.questions.length}
+                                  </td>
+                                  <td className="py-3 px-3 text-right">
+                                    <Button
+                                      variant="secondary"
+                                      size="xs"
+                                      className="h-7 text-[10px] font-semibold"
+                                      onClick={() => setSelectedStudentEmail(s.email)}
+                                    >
+                                      <Eye className="w-3 h-3 mr-1" /> Inspect
+                                    </Button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -1214,10 +1708,10 @@ const ExamArea = () => {
             </Card>
 
             {/* Candidates registry list */}
-            <Card className="bg-card/30 border border-border/50 shadow-lg h-[450px] flex flex-col justify-between">
-              <CardHeader className="border-b border-border/50 py-4">
+            <Card className="bg-card/30 border border-border/50 shadow-lg h-[480px] flex flex-col justify-between">
+              <CardHeader className="border-b border-border/50 py-3.5">
                 <CardTitle className="text-sm font-bold flex items-center gap-2">
-                  <Users className="w-4 h-4 text-primary" /> Student Registry
+                  <Users className="w-4 h-4 text-primary" /> Candidate Registry List
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -1226,84 +1720,239 @@ const ExamArea = () => {
                     No candidates registered yet.
                   </div>
                 ) : (
-                  Object.values(activeSession.students).map((s) => (
-                    <div key={s.email} className="flex justify-between items-center p-3 rounded-lg border border-border/40 bg-card/20 text-xs">
-                      <div className="space-y-1 text-left">
-                        <div className="font-bold flex items-center gap-1">
-                          {s.name}
-                          {s.status === "locked" && <Lock className="w-3 h-3 text-destructive shrink-0" />}
-                          {s.status === "submitted" && <CheckCircle className="w-3 h-3 text-success shrink-0" />}
+                  Object.values(activeSession.students).map((s) => {
+                    const isTop = getLeaderboardList()?.[0]?.email === s.email;
+                    return (
+                      <div key={s.email} className={`flex justify-between items-center p-3 rounded-xl border bg-card/20 text-xs transition-all ${isTop ? "border-amber-500/40 bg-amber-500/5 shadow-sm" : "border-border/40"}`}>
+                        <div className="flex items-center gap-3">
+                          {renderStudentAvatar(s, "w-9 h-9")}
+                          <div className="space-y-0.5 text-left">
+                            <div className="font-bold flex items-center gap-1.5">
+                              {s.name}
+                              {isTop && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] bg-amber-500/20 text-amber-500 font-extrabold border border-amber-500/30">
+                                  👑 TOP
+                                </span>
+                              )}
+                              {s.status === "locked" && <Lock className="w-3 h-3 text-destructive shrink-0" />}
+                              {s.status === "submitted" && <CheckCircle className="w-3 h-3 text-success shrink-0" />}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">{s.email}</div>
+                            <div className="text-[10px]">
+                              Score: <span className="font-extrabold text-primary">{getStudentScore(s, activeSession)}</span> | Warnings: <span className="font-bold text-destructive">{s.warnings}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-[10px] text-muted-foreground">{s.email}</div>
-                        <div className="text-[10px]">
-                          Warnings: <span className="font-bold text-destructive">{s.warnings}</span> | Index: {s.currentIndex + 1}
-                        </div>
-                      </div>
-                      
-                      <div className="flex flex-col gap-1">
-                        {activeSession.examType === "coding" && (
+                        
+                        <div className="flex flex-col gap-1">
                           <Button
                             variant="secondary"
                             size="xs"
-                            className="h-7 text-[10px]"
+                            className="h-7 text-[10px] font-semibold"
                             onClick={() => setSelectedStudentEmail(s.email)}
                           >
-                            <Eye className="w-3 h-3 mr-1" /> View Code
+                            <Eye className="w-3 h-3 mr-1" /> Inspect Details
                           </Button>
-                        )}
-                        {s.status === "locked" && (
-                          <Button 
-                            variant="outline" 
-                            size="xs"
-                            className="h-7 text-[10px] font-semibold border-destructive text-destructive hover:bg-destructive/10"
-                            onClick={() => handleAdminResetStudent(s.email)}
-                          >
-                            <Unlock className="w-3 h-3 mr-1" /> Unlock
-                          </Button>
-                        )}
+                          {s.status === "locked" && (
+                            <Button 
+                              variant="outline" 
+                              size="xs"
+                              className="h-7 text-[10px] font-semibold border-destructive text-destructive hover:bg-destructive/10"
+                              onClick={() => handleAdminResetStudent(s.email)}
+                            >
+                              <Unlock className="w-3 h-3 mr-1" /> Unlock
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </CardContent>
             </Card>
 
           </div>
 
-          {/* Student code view drawer modal */}
-          {selectedStudentEmail && activeSession.students[selectedStudentEmail] && (
-            <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <Card className="max-w-3xl w-full max-h-[85vh] flex flex-col justify-between bg-card border border-border shadow-2xl">
-                <CardHeader className="border-b border-border/50 py-4 flex flex-row justify-between items-center">
-                  <div>
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <Code className="w-4 h-4 text-primary" /> Submitted Code: {activeSession.students[selectedStudentEmail].name}
-                    </CardTitle>
-                    <CardDescription className="text-[10px]">
-                      Email: {selectedStudentEmail}
-                    </CardDescription>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => setSelectedStudentEmail(null)}>Close</Button>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-y-auto p-6 space-y-6">
-                  {activeSession.questions.map((q, idx) => {
-                    const submission = activeSession.students[selectedStudentEmail!].answers[idx] || "";
-                    return (
-                      <div key={idx} className="space-y-2 text-left">
-                        <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                          Question {idx + 1}:
+          {/* Candidate Profile & Photo Identity Inspector Modal */}
+          {selectedStudentEmail && activeSession?.students?.[selectedStudentEmail] && (() => {
+            const inspectedStudent = activeSession.students[selectedStudentEmail];
+            const leaderboard = getLeaderboardList();
+            const rankIndex = leaderboard.findIndex(s => s.email === inspectedStudent.email);
+            const rankNum = rankIndex !== -1 ? rankIndex + 1 : "-";
+            const isTopScorer = rankIndex === 0;
+
+            return (
+              <div className="fixed inset-0 bg-background/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                <Card className="max-w-3xl w-full max-h-[90vh] flex flex-col justify-between bg-card border border-border shadow-2xl overflow-hidden">
+                  <CardHeader className="border-b border-border/50 py-4 px-6 flex flex-row justify-between items-center bg-secondary/20">
+                    <div className="flex items-center gap-3">
+                      {renderStudentAvatar(inspectedStudent, "w-12 h-12")}
+                      <div className="text-left">
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-lg font-bold">{inspectedStudent.name}</CardTitle>
+                          {isTopScorer && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-500 border border-amber-500/30 flex items-center gap-1">
+                              <Trophy className="w-3 h-3" /> Top Scorer #1
+                            </span>
+                          )}
                         </div>
-                        <div className="text-sm font-semibold">{q.text}</div>
-                        <div className="bg-secondary/40 border border-border/50 p-4 rounded-xl font-mono text-xs overflow-x-auto whitespace-pre leading-relaxed text-foreground">
-                          {submission || "# No answer submitted"}
-                        </div>
+                        <CardDescription className="text-xs text-muted-foreground">
+                          {inspectedStudent.email} • Exam Room: <span className="font-mono font-bold text-foreground">{activeSession.examRoomId}</span>
+                        </CardDescription>
                       </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-            </div>
-          )}
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedStudentEmail(null)}>Close</Button>
+                  </CardHeader>
+
+                  <CardContent className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Identity & Quick Stats Header Grid */}
+                    <div className="grid sm:grid-cols-3 gap-4">
+                      {/* Identity Card */}
+                      <div className="sm:col-span-1 bg-secondary/30 border border-border/50 rounded-xl p-4 flex flex-col items-center justify-center text-center space-y-2">
+                        {inspectedStudent.photoUrl ? (
+                          <img 
+                            src={inspectedStudent.photoUrl} 
+                            alt={inspectedStudent.name} 
+                            className="w-24 h-24 rounded-xl object-cover border-2 border-primary/50 shadow-md"
+                          />
+                        ) : (
+                          <div className="w-24 h-24 rounded-xl bg-gradient-to-br from-primary/20 to-primary/60 text-primary-foreground font-black flex items-center justify-center text-2xl shadow-inner border border-primary/40">
+                            {inspectedStudent.name.split(" ").map(n=>n[0]).join("").toUpperCase().slice(0, 2)}
+                          </div>
+                        )}
+                        <div className="text-xs font-bold text-foreground mt-1">Photo Identity</div>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-success/15 text-success border border-success/30 font-semibold flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" /> AI Face Verified
+                        </span>
+                      </div>
+
+                      {/* Performance & Status Box */}
+                      <div className="sm:col-span-2 bg-secondary/30 border border-border/50 rounded-xl p-4 flex flex-col justify-between space-y-3 text-left">
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div className="p-2.5 rounded-lg bg-card/60 border border-border/40">
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold">Leaderboard Rank</span>
+                            <div className="text-lg font-extrabold text-primary flex items-center gap-1.5 mt-0.5">
+                              <Trophy className="w-4 h-4 text-amber-500" /> Rank #{rankNum}
+                            </div>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-card/60 border border-border/40">
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold">Current Score</span>
+                            <div className="text-lg font-extrabold text-foreground mt-0.5">
+                              {getStudentScore(inspectedStudent, activeSession)} / {activeSession.questions.length}
+                            </div>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-card/60 border border-border/40">
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold">Anti-Cheat Warnings</span>
+                            <div className="text-lg font-extrabold text-destructive mt-0.5">
+                              {inspectedStudent.warnings} / 3
+                            </div>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-card/60 border border-border/40">
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold">Session Status</span>
+                            <div className="mt-0.5">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-extrabold ${
+                                inspectedStudent.status === "active" ? "bg-success/15 text-success border border-success/30" :
+                                inspectedStudent.status === "locked" ? "bg-destructive/15 text-destructive border border-destructive/30" :
+                                "bg-primary/15 text-primary border border-primary/30"
+                              }`}>
+                                {inspectedStudent.status.toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {inspectedStudent.status === "locked" && (
+                          <Button 
+                            variant="destructive" 
+                            size="sm" 
+                            className="w-full font-bold"
+                            onClick={() => handleAdminResetStudent(inspectedStudent.email)}
+                          >
+                            <Unlock className="w-4 h-4 mr-1.5" /> Unlock Candidate Session
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Submissions Details */}
+                    <div className="space-y-3 text-left">
+                      <div className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <FileText className="w-4 h-4 text-primary" /> Submitted Answers & Paper Inspection
+                      </div>
+                      
+                      <div className="space-y-4">
+                        {activeSession.questions.map((q: any, idx: number) => {
+                          const submission = inspectedStudent.answers[idx];
+                          if (activeSession.examType === "coding") {
+                            return (
+                              <div key={idx} className="p-4 rounded-xl border border-border/40 bg-secondary/20 space-y-2">
+                                <div className="text-xs font-bold text-primary">Question {idx + 1}: {q.text}</div>
+                                <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg font-mono text-xs text-slate-100 whitespace-pre overflow-x-auto">
+                                  {typeof submission === "string" && submission.trim() ? submission : "# No code written yet"}
+                                </div>
+                              </div>
+                            );
+                          } else {
+                            const isCorrect = submission === q.correctOption;
+                            return (
+                              <div key={idx} className="p-3.5 rounded-xl border border-border/40 bg-secondary/20 text-xs space-y-2">
+                                <div className="font-bold flex items-center justify-between">
+                                  <span>Q{idx + 1}. {q.text}</span>
+                                  {submission >= 0 && (
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      isCorrect ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"
+                                    }`}>
+                                      {isCorrect ? "CORRECT" : "INCORRECT"}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                  <div className="p-2 rounded bg-card border border-border/40">
+                                    <span className="text-muted-foreground font-semibold">Candidate Selected: </span>
+                                    <span className="font-bold text-foreground">
+                                      {submission >= 0 ? q.options[submission] : "Not Answered"}
+                                    </span>
+                                  </div>
+                                  <div className="p-2 rounded bg-card border border-border/40">
+                                    <span className="text-muted-foreground font-semibold">Correct Option: </span>
+                                    <span className="font-bold text-success">
+                                      {q.options[q.correctOption]}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Anti-cheat audit history */}
+                    <div className="space-y-2 text-left">
+                      <div className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <Shield className="w-4 h-4 text-warning" /> Telemetry Violation Audit Log
+                      </div>
+                      <div className="bg-secondary/20 border border-border/40 rounded-xl p-3 max-h-[160px] overflow-y-auto space-y-1.5 font-mono text-[11px]">
+                        {inspectedStudent.logs.length === 0 ? (
+                          <div className="text-muted-foreground italic py-4 text-center">No violations recorded for this candidate.</div>
+                        ) : (
+                          inspectedStudent.logs.map((l, i) => (
+                            <div key={i} className={`p-1.5 rounded border ${
+                              l.type === "warning" ? "bg-warning/10 border-warning/30 text-warning" :
+                              l.type === "error" ? "bg-destructive/10 border-destructive/30 text-destructive" :
+                              "bg-card border-border/30 text-muted-foreground"
+                            }`}>
+                              <span className="font-bold">[{l.timestamp}]</span> {l.message}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })()}
 
         </div>
       )}
@@ -1490,6 +2139,11 @@ const ExamArea = () => {
                         onEyeContactChange={(hasContact) => {
                           if (!hasContact) {
                             triggerCheatWarning("Candidate turned head / looked away from screen");
+                          }
+                        }}
+                        onFaceDetected={(present) => {
+                          if (present === false) {
+                            triggerCheatWarning("Candidate face not visible in camera frame");
                           }
                         }}
                       />

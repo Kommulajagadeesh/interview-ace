@@ -34,8 +34,47 @@ import {
   getUserProfile,
   getCurrentUserEmail,
   syncProfileFromDatabase,
+  safeSessionStorageSet,
   type UserProfile,
 } from "@/lib/auth";
+
+const compressImageDataUrl = (dataUrl: string, maxWidth = 200, maxHeight = 200, quality = 0.5): Promise<string> => {
+  return new Promise((resolve) => {
+    if (!dataUrl || !dataUrl.startsWith("data:image")) {
+      resolve(dataUrl);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth || height > maxHeight) {
+        if (width > height) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        } else {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      } else {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+};
 
 const learningProgramsList = [
   { id: "dsa", label: "DSA Foundations", icon: Code, desc: "Algorithms & complexity" },
@@ -92,12 +131,12 @@ const ProfileSetup = () => {
     if (!video) return;
 
     const canvas = document.createElement("canvas");
-    canvas.width = 320;
-    canvas.height = 240;
+    canvas.width = 200;
+    canvas.height = 200;
     const ctx = canvas.getContext("2d");
     if (ctx) {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.5);
       setPersonalDetails((prev) => ({
         ...prev,
         profilePhoto: dataUrl,
@@ -198,10 +237,15 @@ const ProfileSetup = () => {
     personalDetails.learningPrograms.length > 0 &&
     personalDetails.profilePhoto !== "";
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!isValidDetails) {
       toast.error("Please fill in all mandatory details.");
       return;
+    }
+
+    let photo = personalDetails.profilePhoto;
+    if (photo && photo.startsWith("data:image")) {
+      photo = await compressImageDataUrl(photo, 200, 200, 0.5);
     }
 
     const profileData: UserProfile = {
@@ -212,12 +256,12 @@ const ProfileSetup = () => {
       intakeAnswers: {}, // Empty since intake assessment is removed
       resumeFileName: personalDetails.resumeFileName,
       resumeText: personalDetails.resumeText,
-      profilePhoto: personalDetails.profilePhoto,
+      profilePhoto: photo,
     };
 
     saveUserProfile(profileData);
     const selfieKey = `interviewSelfie_${email.trim().toLowerCase()}`;
-    sessionStorage.setItem(selfieKey, personalDetails.profilePhoto);
+    safeSessionStorageSet(selfieKey, photo);
     toast.success("Profile Setup Complete! Welcome to Interview Ace.");
     navigate("/home");
   };
@@ -402,10 +446,12 @@ const ProfileSetup = () => {
                                       const file = e.target.files?.[0];
                                       if (file) {
                                         const reader = new FileReader();
-                                        reader.onload = (event) => {
+                                        reader.onload = async (event) => {
+                                          const rawUrl = event.target?.result as string;
+                                          const compressed = await compressImageDataUrl(rawUrl, 200, 200, 0.5);
                                           setPersonalDetails((prev) => ({
                                             ...prev,
-                                            profilePhoto: event.target?.result as string,
+                                            profilePhoto: compressed,
                                           }));
                                           toast.success("Profile photo uploaded!");
                                         };

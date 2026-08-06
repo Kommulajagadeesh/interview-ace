@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAnalytics, isSupported, Analytics } from "firebase/analytics";
 import {
   getAuth,
   signInWithEmailAndPassword,
@@ -6,6 +7,12 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut as firebaseSignOut,
+  sendEmailVerification,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
+  sendPasswordResetEmail,
+  User,
   UserCredential,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -26,6 +33,17 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+let analytics: Analytics | null = null;
+if (typeof window !== "undefined") {
+  isSupported().then((supported) => {
+    if (supported) {
+      analytics = getAnalytics(app);
+    }
+  }).catch(() => {
+    // Analytics not supported in this environment
+  });
+}
 
 // Create mock user credential for local auth fallback
 const createMockUserCredential = (email: string, displayName?: string): UserCredential => ({
@@ -138,8 +156,24 @@ export const signInWithGoogle = async (): Promise<UserCredential> => {
   }
 };
 
+export const sendVerificationEmail = (user: User) => sendEmailVerification(user);
+
+export const sendMagicLink = async (email: string) => {
+  const actionCodeSettings = {
+    url: window.location.origin + "/login?verifyEmail=" + encodeURIComponent(email),
+    handleCodeInApp: true,
+  };
+  await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+};
+
+export const checkIsEmailLink = (url: string) => isSignInWithEmailLink(auth, url);
+
+export const completeEmailLinkSignIn = (email: string, url: string) =>
+  signInWithEmailLink(auth, email, url);
+
+export const sendPasswordReset = (email: string) =>
+  sendPasswordResetEmail(auth, email);
+
 export const signOut = () => firebaseSignOut(auth).catch(() => {});
 
-export { auth, db };
-
-
+export { app, auth, db, analytics };

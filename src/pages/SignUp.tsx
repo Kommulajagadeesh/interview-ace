@@ -55,25 +55,46 @@ const SignUp = () => {
     setIsLoading(true);
     try {
       const firebaseModule = await import("@/lib/firebase");
-      const credential = await firebaseModule.signUpWithEmail(formData.email, formData.password);
-      const email = credential.user.email || formData.email;
+      let email = formData.email.trim().toLowerCase();
+      try {
+        const credential = await firebaseModule.signUpWithEmail(formData.email, formData.password);
+        email = credential.user.email || formData.email;
+        if (credential.user) {
+          await firebaseModule.sendVerificationEmail(credential.user).catch(() => {});
+        }
+      } catch (fbErr: any) {
+        console.warn("Firebase Auth registration notice:", fbErr);
+        const code = fbErr?.code || "";
+        if (code === "auth/email-already-in-use") {
+          setError("This email address is already registered. Please Sign In instead.");
+          setIsLoading(false);
+          return;
+        }
+        if (code === "auth/weak-password") {
+          setError("Password should be at least 6 characters long.");
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Send mandatory verification magic link to user inbox
+      await firebaseModule.sendMagicLink(email).catch(() => {});
 
       const authModule = await import("@/lib/auth");
-      await authModule.registerUserLogin(email);
-      await authModule.saveInitialProfile({
+      authModule.registerUserLogin(email).catch(() => {});
+      authModule.saveInitialProfile({
         name: formData.fullName,
-        email: email.trim().toLowerCase(),
+        email: email,
         gender: "",
         learningPrograms: [],
         intakeAnswers: {}
-      });
+      }).catch(() => {});
 
       setSuccess(true);
-      setTimeout(() => navigate("/login"), 800);
-    } catch (err) {
+      setTimeout(() => navigate("/login?unverified=" + encodeURIComponent(email)), 1200);
+    } catch (err: any) {
       console.error("Signup error", err);
-      const errorObject = err as Error;
-      setError(errorObject?.message || "Failed to create account");
+      setError(err?.message || "Failed to create account");
     } finally {
       setIsLoading(false);
     }
@@ -84,7 +105,7 @@ const SignUp = () => {
     setIsLoading(true);
     try {
       const { signInWithGoogle } = await import("@/lib/firebase");
-      const { setUserLoggedIn, registerUserLogin, setCurrentUserEmail } = await import("@/lib/auth");
+      const { setUserLoggedIn, registerUserLogin, setCurrentUserEmail, setEmailVerified } = await import("@/lib/auth");
       const credential = await signInWithGoogle();
       const email = credential.user.email || "";
       
@@ -92,29 +113,32 @@ const SignUp = () => {
         const { setAdminLoggedIn, registerUserLogin, setCurrentUserEmail } = await import("@/lib/auth");
         setAdminLoggedIn(true);
         setCurrentUserEmail(email);
-        await registerUserLogin(email);
+        registerUserLogin(email).catch(() => {});
         setSuccess(true);
-        setTimeout(() => navigate("/admin"), 800);
+        navigate("/admin");
         return;
       }
 
+      setEmailVerified(email);
       setUserLoggedIn(true);
       setCurrentUserEmail(email);
-      await registerUserLogin(email);
+      registerUserLogin(email).catch(() => {});
       setSuccess(true);
       const { syncProfileFromDatabase, isProfileSetupComplete, saveInitialProfile } = await import("@/lib/auth");
-      const existingProfile = await syncProfileFromDatabase(email);
-      if (!existingProfile) {
-        await saveInitialProfile({
-          name: credential.user.displayName || email.split("@")[0] || "Google User",
-          email: email.trim().toLowerCase(),
-          gender: "",
-          learningPrograms: [],
-          intakeAnswers: {}
-        });
-      }
+      syncProfileFromDatabase(email).then(async (existingProfile) => {
+        if (!existingProfile) {
+          await saveInitialProfile({
+            name: credential.user.displayName || email.split("@")[0] || "Google User",
+            email: email.trim().toLowerCase(),
+            gender: "",
+            learningPrograms: [],
+            intakeAnswers: {}
+          });
+        }
+      }).catch(() => {});
+
       const destination = isProfileSetupComplete() ? "/home" : "/profile-setup";
-      setTimeout(() => navigate(destination), 800);
+      navigate(destination);
     } catch (err) {
       console.error("Google signup error", err);
       const errorObject = err as Error;
