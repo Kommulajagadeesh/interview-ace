@@ -2321,96 +2321,187 @@ const ExamArea = () => {
       {/* -------------------------------------------------------------
           STUDENT SUBMITTED / SCORE PAGE
           ------------------------------------------------------------- */}
-      {mode === "student_submitted" && activeSession && (
-        <Card className="max-w-xl mx-auto w-full bg-card/50 backdrop-blur-md border border-border/50 shadow-2xl text-center">
-          <CardHeader>
-            <div className="p-3 bg-success/10 rounded-full w-fit mx-auto text-success border border-success/20 mb-2">
-              <CheckCircle className="w-8 h-8" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Exam Submitted</CardTitle>
-            <CardDescription className="text-xs">
-              Your exam paper has been securely recorded in the registry database.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            
-            {/* Quick stats box */}
-            <div className="p-4 bg-secondary/40 rounded-lg border border-border/50 text-xs space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground font-semibold">Exam Category:</span>
-                <span className="font-bold">{activeSession.category}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground font-semibold">Total Questions:</span>
-                <span className="font-bold">{activeSession.questions.length}</span>
-              </div>
+      {/* -------------------------------------------------------------
+          STUDENT SUBMITTED / LIVE EXAM AREA TOP WINNERS ONLY
+          ------------------------------------------------------------- */}
+      {mode === "student_submitted" && activeSession && (() => {
+        const answersToUse = student?.answers || studentAnswers;
+        const totalQuestions = activeSession.questions.length;
+        
+        let score = 0;
+        if (activeSession.examType === "mcq") {
+          activeSession.questions.forEach((q: any, idx: number) => {
+            const userAns = answersToUse[idx];
+            if (userAns === q.correctOption) {
+              score++;
+            }
+          });
+        } else {
+          score = answersToUse.filter((ans: any) => typeof ans === "string" && ans.trim().length > 0).length;
+        }
+
+        const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
+        const candidateName = student?.name || studentName || "Candidate";
+        const candidateEmail = student?.email || currentStudentEmail || "candidate@example.com";
+        
+        // Save score to global leaderboard for Intelligence Dashboard
+        import("@/lib/auth").then(({ saveInterviewSession }) => {
+          saveInterviewSession({
+            date: new Date().toISOString(),
+            category: activeSession.category,
+            results: [],
+            mcqScore: percentage
+          }).catch(() => {});
+        });
+
+        // Sorted leaderboard list of candidates in live exam area
+        const leaderboardList = Object.values(activeSession.students || {}).sort((a, b) => {
+          return getStudentScore(b, activeSession) - getStudentScore(a, activeSession);
+        });
+
+        // If current student is not yet in leaderboard list, ensure they appear
+        const currentUserInList = leaderboardList.find(s => s.email === candidateEmail);
+        if (!currentUserInList && student) {
+          leaderboardList.push(student);
+          leaderboardList.sort((a, b) => getStudentScore(b, activeSession) - getStudentScore(a, activeSession));
+        }
+
+        const candidateRankIndex = leaderboardList.findIndex(s => s.email === candidateEmail);
+        const candidateRankNum = candidateRankIndex !== -1 ? candidateRankIndex + 1 : 1;
+
+        const topThreeWinners = leaderboardList.slice(0, 3);
+
+        return (
+          <div className="max-w-3xl mx-auto w-full space-y-6">
+            <Card className="bg-card/70 backdrop-blur-md border border-amber-500/30 shadow-2xl overflow-hidden relative">
               
-              {activeSession.examType === "mcq" && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground font-semibold">Your Final Score:</span>
-                  <span className="font-bold text-primary text-sm">
-                    {student ? getStudentScore(student, activeSession) : 0} / {activeSession.questions.length}
-                  </span>
+              {/* Gold Top Banner */}
+              <div className="bg-gradient-to-r from-amber-500/20 via-primary/20 to-amber-500/20 p-6 text-center border-b border-amber-500/30">
+                <div className="inline-flex items-center justify-center p-3 bg-amber-500/20 text-amber-500 rounded-2xl mb-3 border border-amber-500/40 shadow-lg">
+                  <Trophy className="w-10 h-10 animate-bounce" />
                 </div>
-              )}
-
-              <div className="flex justify-between">
-                <span className="text-muted-foreground font-semibold">Anti-Cheat Verdict:</span>
-                <span className="font-bold text-success flex items-center gap-1">
-                  <Shield className="w-3.5 h-3.5" /> Checked & Clean
-                </span>
+                <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-foreground">Live Exam Area - Top Winners</h1>
+                <p className="text-xs sm:text-sm font-semibold text-muted-foreground mt-1">
+                  Official Leaderboard & Rankings for <strong className="text-amber-500">{activeSession.title}</strong>
+                </p>
               </div>
-            </div>
 
-            {/* Answer Corrections (if enabled by examiner) */}
-            {activeSession.examType === "mcq" && activeSession.showAnswersAfterExam && student && (
-              <div className="space-y-3 pt-2 text-left">
-                <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                  Answer Keys & Corrections:
-                </div>
-                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                  {activeSession.questions.map((q: any, idx) => {
-                    const candidateAns = student.answers[idx];
-                    const correctAns = q.correctOption;
-                    const isCorrect = candidateAns === correctAns;
-                    
-                    return (
-                      <div key={idx} className="p-3 bg-secondary/20 rounded-xl border border-border/40 text-xs space-y-1.5">
-                        <div className="font-bold flex items-center gap-1">
-                          <span>Q{idx + 1}. {q.text}</span>
-                          {isCorrect ? (
-                            <CheckCircle className="w-3.5 h-3.5 text-success shrink-0" />
-                          ) : (
-                            <XCircle className="w-3.5 h-3.5 text-destructive shrink-0" />
-                          )}
-                        </div>
-                        <div className="space-y-1 text-muted-foreground font-semibold">
-                          <div className={`p-1.5 rounded flex justify-between ${
-                            isCorrect ? "bg-success/5 text-success border border-success/15" : "bg-destructive/5 text-destructive border border-destructive/15"
-                          }`}>
-                            <span>Your Answer: {candidateAns >= 0 ? q.options[candidateAns] : "No Answer Selected"}</span>
-                          </div>
-                          {!isCorrect && (
-                            <div className="p-1.5 rounded bg-success/5 text-success border border-success/15 flex justify-between">
-                              <span>Correct Answer: {q.options[correctAns]}</span>
-                            </div>
-                          )}
-                        </div>
+              <CardContent className="p-6 space-y-6">
+                
+                {/* Candidate Personal Rank Highlight Banner */}
+                <div className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-primary/10 border border-primary/30 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md text-left">
+                  <div className="flex items-center gap-3">
+                    {renderStudentAvatar(student || { name: candidateName, email: candidateEmail, currentIndex: 0, answers: [], warnings: 0, status: "submitted", logs: [] }, "w-12 h-12")}
+                    <div>
+                      <div className="text-[10px] font-extrabold uppercase text-primary tracking-wider">Your Live Result</div>
+                      <h3 className="text-base font-bold text-foreground">{candidateName} <span className="text-xs text-muted-foreground">({candidateEmail})</span></h3>
+                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-3">
+                        <span>Score: <strong className="text-primary font-extrabold">{score} / {totalQuestions}</strong></span>
+                        <span>Marks: <strong className="text-emerald-500 font-black">{percentage}%</strong></span>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+                    </div>
+                  </div>
 
-          </CardContent>
-          <CardFooter className="pt-2">
-            <Button className="w-full font-semibold" onClick={() => setMode("select")}>
-              Return to Hall Selector
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
+                  <div className="text-center sm:text-right shrink-0">
+                    <div className="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-500 border border-amber-500/40 font-black text-sm sm:text-base flex items-center gap-1.5 shadow-sm">
+                      <Trophy className="w-4 h-4 fill-amber-500" />
+                      Rank #{candidateRankNum} {candidateRankNum === 1 ? "(1st Place 🏆)" : candidateRankNum === 2 ? "(2nd Place 🥈)" : candidateRankNum === 3 ? "(3rd Place 🥉)" : ""}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top Winners Podium / Top 3 Ranks Cards Only */}
+                <div className="space-y-3 text-left">
+                  <div className="text-xs font-black uppercase text-amber-500 tracking-wider flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Trophy className="w-4 h-4 text-amber-500" /> Top 3 Winners of Live Exam Area
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-semibold">Updated Real-Time</span>
+                  </div>
+
+                  <div className="grid gap-3">
+                    {topThreeWinners.map((winner, idx) => {
+                      const rankNum = idx + 1;
+                      const winnerScore = getStudentScore(winner, activeSession);
+                      const winnerPercentage = totalQuestions > 0 ? Math.round((winnerScore / totalQuestions) * 100) : 0;
+                      const isCurrentUser = winner.email === candidateEmail;
+
+                      let rankBadge = (
+                        <span className="flex items-center gap-1 text-amber-500 font-black text-sm">
+                          🥇 1st Place
+                        </span>
+                      );
+                      let cardStyle = "bg-amber-500/10 border-amber-500/40 shadow-md";
+
+                      if (rankNum === 2) {
+                        rankBadge = (
+                          <span className="flex items-center gap-1 text-slate-300 font-black text-sm">
+                            🥈 2nd Place
+                          </span>
+                        );
+                        cardStyle = "bg-slate-400/10 border-slate-400/30";
+                      } else if (rankNum === 3) {
+                        rankBadge = (
+                          <span className="flex items-center gap-1 text-amber-700 font-black text-sm">
+                            🥉 3rd Place
+                          </span>
+                        );
+                        cardStyle = "bg-amber-700/10 border-amber-700/30";
+                      }
+
+                      return (
+                        <div key={winner.email} className={`p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all ${cardStyle} ${isCurrentUser ? "ring-2 ring-primary/50" : ""}`}>
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <div className="relative shrink-0">
+                              {renderStudentAvatar(winner, "w-11 h-11")}
+                              <div className="absolute -top-1 -right-1 bg-background text-foreground text-[10px] p-0.5 rounded-full border border-border">
+                                {rankNum === 1 ? "🥇" : rankNum === 2 ? "🥈" : "🥉"}
+                              </div>
+                            </div>
+                            <div className="truncate">
+                              <div className="font-extrabold text-sm text-foreground flex items-center gap-2 truncate">
+                                {winner.name}
+                                {isCurrentUser && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] bg-primary text-primary-foreground font-bold">
+                                    YOU
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate">{winner.email}</div>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <div className="text-base font-black text-emerald-500">{winnerPercentage}% Marks</div>
+                            <div className="mt-0.5">{rankBadge}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </CardContent>
+
+              <CardFooter className="flex flex-col sm:flex-row gap-3 p-6 border-t border-border/40 bg-secondary/10">
+                <Button 
+                  variant="outline" 
+                  className="w-full sm:w-1/2 font-bold" 
+                  onClick={() => window.print()}
+                >
+                  <Download className="w-4 h-4 mr-1.5" /> Print Winners Report
+                </Button>
+                <Button 
+                  className="w-full sm:w-1/2 font-bold bg-primary hover:bg-primary/90 text-primary-foreground" 
+                  onClick={() => setMode("select")}
+                >
+                  Return to Live Exam Area <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        );
+      })()}
 
     </div>
   );

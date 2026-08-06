@@ -36,7 +36,7 @@ const Login = () => {
 
     if (unverifiedParam) {
       setEmail(unverifiedParam);
-      setInfoMessage(`Registration successful for ${unverifiedParam}! Email verification is mandatory. Please check your email inbox and click the verification link before logging in.`);
+      setInfoMessage(`Account created successfully for ${unverifiedParam}! Please sign in with your password below.`);
     }
 
     if (verifyEmailParam || checkIsEmailLink(href)) {
@@ -55,31 +55,6 @@ const Login = () => {
       }
     }
   }, [navigate]);
-
-  const handleSendVerificationEmail = async () => {
-    setError("");
-    setInfoMessage("");
-    setVerificationSent(false);
-
-    if (!email || !email.includes("@")) {
-      setError("Please enter a valid email address first.");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      localStorage.setItem("emailForSignIn", email);
-      await sendMagicLink(email);
-      setVerificationSent(true);
-      setInfoMessage(`Mandatory verification link sent to ${email}! Please check your email inbox and click the link to verify.`);
-    } catch (err: any) {
-      console.warn("Magic link send notice:", err);
-      setVerificationSent(true);
-      setInfoMessage(`Verification link request generated for ${email}! Please check your inbox (or spam folder) to verify.`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleForgotPassword = async () => {
     setError("");
@@ -119,37 +94,10 @@ const Login = () => {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // MANDATORY EMAIL VERIFICATION CHECK
-    if (!isEmailVerified(normalizedEmail)) {
-      setIsLoading(true);
-      try {
-        const cred = await signInWithEmail(email, password);
-        if (cred?.user?.emailVerified) {
-          setEmailVerified(normalizedEmail);
-        } else {
-          // Send verification link automatically if not verified
-          sendMagicLink(normalizedEmail).catch(() => {});
-          setError("Email verification is MANDATORY. We have sent a verification link to your email. Please open your email inbox and click the link to verify before logging in.");
-          setInfoMessage(`Verification link sent to ${normalizedEmail}. Open your email inbox and click the link to verify.`);
-          setIsLoading(false);
-          return;
-        }
-      } catch (err: any) {
-        console.warn("Auth check notice:", err);
-        if (!isEmailVerified(normalizedEmail)) {
-          sendMagicLink(normalizedEmail).catch(() => {});
-          setError("Email verification is MANDATORY. A verification link has been sent to your email. Please check your inbox and click the link to verify.");
-          setInfoMessage(`Click 'Send Verification Link' or open your email inbox to verify ${normalizedEmail}.`);
-          setIsLoading(false);
-          return;
-        }
-      }
-    }
-
     setIsLoading(true);
     
     // Check for Admin Hardcoded Login
-    if (email.trim().toLowerCase() === "admin@smartinterview.com" && password === "admin123") {
+    if (normalizedEmail === "admin@smartinterview.com" && password === "admin123") {
       import("@/lib/auth").then(({ setAdminLoggedIn, registerUserLogin, setCurrentUserEmail }) => {
         setAdminLoggedIn(rememberMe);
         setCurrentUserEmail(email);
@@ -162,6 +110,7 @@ const Login = () => {
 
     try {
       await signInWithEmail(email, password);
+      setEmailVerified(normalizedEmail);
       setUserLoggedIn(rememberMe);
       setCurrentUserEmail(email);
       registerUserLogin(email).catch(() => {});
@@ -181,6 +130,7 @@ const Login = () => {
         errorMsg.includes("operation-not-allowed") ||
         errorMsg.includes("network")
       ) {
+        setEmailVerified(normalizedEmail);
         setUserLoggedIn(rememberMe);
         setCurrentUserEmail(email);
         registerUserLogin(email).catch(() => {});
@@ -332,19 +282,9 @@ const Login = () => {
               transition={{ delay: 0.1 }}
               className="space-y-1.5"
             >
-              <div className="flex items-center justify-between">
-                <Label htmlFor="email" className="text-sm font-medium block text-foreground">
-                  Email Address
-                </Label>
-                <button
-                  type="button"
-                  onClick={handleSendVerificationEmail}
-                  className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1"
-                  disabled={isLoading}
-                >
-                  <Send className="w-3 h-3" /> Send Verification Link
-                </button>
-              </div>
+              <Label htmlFor="email" className="text-sm font-medium mb-1.5 block text-foreground">
+                Email Address
+              </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
