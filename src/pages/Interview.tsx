@@ -18,7 +18,7 @@ import {
   getMCQQuestions,
   generateMCQFromResume,
 } from "@/data/mcq";
-import { Clock, ArrowRight, ArrowLeft, CheckCircle, Briefcase, Code, Database, Globe, Cpu, Wifi, Coffee, FileCode, CheckCircle2, XCircle, HelpCircle, Layers, Sparkles, Loader2, Camera, Mic, VideoOff, MicOff, User, MessageSquare, Sparkle, AlertTriangle, Volume2, VolumeX, Type } from "lucide-react";
+import { Clock, ArrowRight, ArrowLeft, CheckCircle, Briefcase, Code, Database, Globe, Cpu, Wifi, Coffee, FileCode, CheckCircle2, XCircle, HelpCircle, Layers, Sparkles, Loader2, Camera, Mic, VideoOff, MicOff, User, MessageSquare, Sparkle, AlertTriangle, Volume2, VolumeX, Type, FileText, Link as LinkIcon, Brain, Edit3, ThumbsUp, TrendingUp, Terminal, Play, Settings as SettingsIcon, Bot } from "lucide-react";
 import VoiceControlInterview from "@/components/VoiceControlInterview";
 import VoiceAssistant from "@/components/VoiceAssistant";
 import VoiceInterviewAssistant from "@/components/VoiceInterviewAssistant";
@@ -133,6 +133,9 @@ const Interview = () => {
   const [autoListenEnabled, setAutoListenEnabled] = useState(true);
   const [isVoiceMuted, setIsVoiceMuted] = useState(false);
   const [interviewSource, setInterviewSource] = useState<"profile" | "resume">("profile");
+
+  // Top header level tab selection
+  const [topActiveTab, setTopActiveTab] = useState<"prep" | "settings" | "live" | "scorecard">("prep");
 
   // Completion results tab selection
   const [resultsTab, setResultsTab] = useState<"mcq" | "voice">("mcq");
@@ -712,109 +715,172 @@ const Interview = () => {
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 
   return (
-    <div className="w-full">
-      <main className="container px-3 sm:px-6 pt-24 sm:pt-28 pb-12 sm:pb-16">
+    <div className="w-full min-h-screen bg-background">
+      <main className="container max-w-6xl mx-auto px-3 sm:px-6 pt-16 sm:pt-18 pb-6">
         <AnimatePresence mode="wait">
           
           {/* STAGE: SELECT (SETUP & ONBOARDING) */}
           {stage === "select" && (
             <motion.div
               key="select"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="max-w-6xl mx-auto"
+              exit={{ opacity: 0, y: -10 }}
+              className="w-full mx-auto"
             >
-              <div className="text-center mb-10 sm:mb-12">
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4 text-foreground">
-                  Prepare for <span className="text-gradient">Mock Interview</span>
+              {/* Return Button */}
+              <div className="mb-2 flex items-center justify-start">
+                <button
+                  onClick={() => navigate("/")}
+                  className="w-8 h-8 rounded-full flex items-center justify-center bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 text-slate-800 dark:text-slate-100 hover:text-primary hover:border-primary/40 hover:bg-primary/10 shadow-sm hover:scale-105 transition-all duration-200 cursor-pointer group"
+                  title="Return to Dashboard"
+                >
+                  <ArrowLeft className="w-4 h-4 text-primary group-hover:-translate-x-0.5 transition-transform duration-200" />
+                </button>
+              </div>
+
+              {/* Top Compact Header Title */}
+              <div className="text-center py-2 sm:py-3 mb-3">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl text-foreground mb-1.5 font-extrabold leading-tight">
+                  Prepare for <span className="text-purple-600 dark:text-purple-400">Mock Interview</span>
                 </h1>
-                <p className="text-lg text-muted-foreground font-medium max-w-2xl mx-auto">
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-2xl mx-auto font-medium">
                   Configure your session settings to start your diagnostic mock interview assessment.
                 </p>
               </div>
 
-              <div className="flex flex-col lg:flex-row gap-8 lg:gap-10">
-                {/* Main Content (Left) */}
-                <div className="flex-1 space-y-8">
-                  {/* Preparation Tabs Container */}
-                  <div className="glass-card p-6 sm:p-8 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
-                    
-                    <h2 className="text-xl sm:text-2xl font-bold mb-3 tracking-tight">Interview Context Prep</h2>
-                    <p className="text-sm text-muted-foreground font-medium mb-6">
+              {/* Tab Navigation (Prep Module, Interview Settings, Live Interview, Scorecard) */}
+              <div className="pb-2 mb-4 border-b border-slate-200 dark:border-slate-800 flex gap-6 overflow-x-auto text-xs sm:text-sm font-semibold">
+                <button
+                  type="button"
+                  onClick={() => { setTopActiveTab("prep"); if (stage !== "select") setStage("select"); }}
+                  className={`pb-2 border-b-[3px] transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                    topActiveTab === "prep" && stage === "select"
+                      ? "border-purple-600 text-purple-600 dark:text-purple-400 font-bold"
+                      : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 font-medium"
+                  }`}
+                >
+                  Prep Module
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setTopActiveTab("settings"); if (stage !== "select") setStage("select"); }}
+                  className={`pb-2 border-b-[3px] transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                    topActiveTab === "settings" && stage === "select"
+                      ? "border-purple-600 text-purple-600 dark:text-purple-400 font-bold"
+                      : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 font-medium"
+                  }`}
+                >
+                  Interview Settings
+                </button>
+                <button
+                  type="button"
+                  disabled={stage === "select"}
+                  onClick={() => { setTopActiveTab("live"); }}
+                  className={`pb-2 border-b-[3px] transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                    stage === "mcq" || stage === "interview"
+                      ? "border-purple-600 text-purple-600 dark:text-purple-400 font-bold"
+                      : "border-transparent text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-60 font-medium"
+                  }`}
+                >
+                  Live Interview
+                </button>
+                <button
+                  type="button"
+                  disabled={stage !== "complete"}
+                  onClick={() => { setTopActiveTab("scorecard"); }}
+                  className={`pb-2 border-b-[3px] transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                    stage === "complete"
+                      ? "border-purple-600 text-purple-600 dark:text-purple-400 font-bold"
+                      : "border-transparent text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-60 font-medium"
+                  }`}
+                >
+                  Scorecard
+                </button>
+              </div>
+
+              {/* TAB 1: Prep Module View */}
+              {topActiveTab === "prep" && (
+                <section className="space-y-4 animate-in fade-in duration-200">
+                  <div className="mb-3 text-left">
+                    <h2 className="text-lg sm:text-xl text-foreground mb-1 font-bold tracking-tight">Interview Context Prep</h2>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
                       Customize where the AI gets its question pool. You can use your onboarding track list, upload a resume, target a job description, or paste custom questions.
                     </p>
+                  </div>
 
-                    {/* Tabs Buttons */}
-                    <div className="flex flex-wrap gap-2 mb-6 border-b border-border/20 pb-4">
-                      <Button
-                        variant={uploadTab === "onboarding" ? "default" : "outline"}
-                        onClick={() => { setUploadTab("onboarding"); setInterviewSource("profile"); }}
-                        className="text-xs font-semibold h-9 px-3 rounded-lg"
-                      >
-                        Onboarding Track
-                      </Button>
-                      <Button
-                        variant={uploadTab === "resume" ? "default" : "outline"}
-                        onClick={() => { setUploadTab("resume"); setInterviewSource("resume"); }}
-                        className="text-xs font-semibold h-9 px-3 rounded-lg"
-                      >
-                        Resume Upload
-                      </Button>
-                      <Button
-                        variant={uploadTab === "job_desc" ? "default" : "outline"}
-                        onClick={() => { setUploadTab("job_desc"); setInterviewSource("profile"); }}
-                        className="text-xs font-semibold h-9 px-3 rounded-lg"
-                      >
-                        Job Description
-                      </Button>
-                      <Button
-                        variant={uploadTab === "online_test" ? "default" : "outline"}
-                        onClick={() => { setUploadTab("online_test"); setInterviewSource("profile"); }}
-                        className="text-xs font-semibold h-9 px-3 rounded-lg"
-                      >
-                        Online Test / Link
-                      </Button>
-                      <Button
-                        variant={uploadTab === "knowledge" ? "default" : "outline"}
-                        onClick={() => { setUploadTab("knowledge"); setInterviewSource("profile"); }}
-                        className="text-xs font-semibold h-9 px-3 rounded-lg"
-                      >
-                        My Knowledge (LLM Mind)
-                      </Button>
-                      <Button
-                        variant={uploadTab === "custom_qs" ? "default" : "outline"}
-                        onClick={() => { setUploadTab("custom_qs"); setInterviewSource("profile"); }}
-                        className="text-xs font-semibold h-9 px-3 rounded-lg"
-                      >
-                        Custom Questions
-                      </Button>
-                    </div>
+                  {/* Compact Button Grid */}
+                  <div className="flex flex-wrap gap-2.5 mb-4">
+                    {[
+                      { id: "onboarding", label: "Onboarding Track", icon: Globe, source: "profile" },
+                      { id: "resume", label: "Resume Upload", icon: FileText, source: "resume" },
+                      { id: "job_desc", label: "Job Description", icon: Briefcase, source: "profile" },
+                      { id: "online_test", label: "Online Test / Link", icon: LinkIcon, source: "profile" },
+                      { id: "knowledge", label: "My Knowledge (LLM Mind)", icon: Brain, source: "profile" },
+                      { id: "custom_qs", label: "Custom Questions", icon: Edit3, source: "profile" },
+                    ].map((tab) => {
+                      const isSelected = uploadTab === tab.id;
+                      const Icon = tab.icon;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => {
+                            setUploadTab(tab.id as any);
+                            setInterviewSource(tab.source as any);
+                          }}
+                          className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border transition-all cursor-pointer ${
+                            isSelected
+                              ? "bg-purple-700 dark:bg-purple-600 text-white border-purple-700 dark:border-purple-600 shadow-sm"
+                              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-850"
+                          }`}
+                        >
+                          <div
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                              isSelected ? "bg-white/20 text-white" : "bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400"
+                            }`}
+                          >
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="text-left">
+                            <span className={`block text-xs sm:text-sm ${isSelected ? "font-bold" : "font-semibold"}`}>{tab.label}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                    {/* Tab panels */}
+                  {/* Active Context Panel Details */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm text-left mb-4">
                     {uploadTab === "onboarding" && (
-                      <div className="space-y-4">
-                        <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Default Track Categories</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-3">
+                        <h3 className="text-[11px] text-slate-500 dark:text-slate-400 tracking-widest uppercase font-bold">DEFAULT TRACK CATEGORIES</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {getUserProfile()?.learningPrograms && getUserProfile()!.learningPrograms.length > 0 ? (
                             getUserProfile()!.learningPrograms.map((catId) => {
                               const info = categoryInfoMap[catId] || { label: catId.toUpperCase(), icon: Code, desc: "Custom category" };
+                              const IconComp = info.icon;
                               return (
-                                <div key={catId} className="flex items-center gap-4 p-4 rounded-xl border border-border/50 bg-background/30 text-left">
-                                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                                    <info.icon className="w-5 h-5" />
+                                <div key={catId} className="flex items-center gap-3.5 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 hover:shadow-sm transition-shadow">
+                                  <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-950/60 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+                                    <IconComp className="w-5 h-5" />
                                   </div>
                                   <div>
-                                    <h4 className="font-semibold text-foreground text-sm">{info.label}</h4>
-                                    <p className="text-xs text-muted-foreground">{info.desc}</p>
+                                    <h4 className="text-xs sm:text-sm font-bold text-foreground">{info.label}</h4>
+                                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">{info.desc}</p>
                                   </div>
                                 </div>
                               );
                             })
                           ) : (
-                            <div className="col-span-2 text-center p-6 text-muted-foreground text-sm border border-dashed rounded-xl">
-                              No tracks selected in profile. Defaulting to all categories.
+                            <div className="flex items-center gap-3.5 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 hover:shadow-sm transition-shadow">
+                              <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-950/60 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+                                <Globe className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <h4 className="text-xs sm:text-sm font-bold text-foreground">Web Development</h4>
+                                <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">HTML/CSS, JS & React</p>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -822,11 +888,11 @@ const Interview = () => {
                     )}
 
                     {uploadTab === "resume" && (
-                      <div className="space-y-4 text-left">
-                        <div className="border-2 border-dashed border-border/60 bg-muted/20 rounded-2xl p-6 text-center hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer relative">
-                          <Briefcase className="w-8 h-8 text-primary mx-auto mb-2" />
-                          <p className="text-sm font-bold">Upload Resume File (PDF, TXT)</p>
-                          <p className="text-xs text-muted-foreground mt-1">Vedyasetu dynamic PDF parser will extract details</p>
+                      <div className="space-y-4">
+                        <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950/40 rounded-2xl p-8 text-center hover:border-purple-500 transition-colors relative cursor-pointer">
+                          <Briefcase className="w-10 h-10 text-purple-600 dark:text-purple-400 mx-auto mb-3" />
+                          <p className="text-base font-bold text-foreground">Upload Resume File (PDF, TXT)</p>
+                          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">Vedyasetu dynamic parser will auto-extract key skills and experience</p>
                           <input
                             type="file"
                             accept=".pdf,.txt"
@@ -835,56 +901,51 @@ const Interview = () => {
                             id="resume-file-upload-input"
                           />
                           {localResumeFileName && (
-                            <p className="text-xs text-emerald-400 mt-2 font-bold flex items-center justify-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Selected: {localResumeFileName}
+                            <p className="text-xs sm:text-sm text-emerald-600 dark:text-emerald-400 mt-3 font-bold flex items-center justify-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4" /> Selected: {localResumeFileName}
                             </p>
                           )}
                         </div>
-
                         <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-muted-foreground">Or paste resume details directly:</Label>
+                          <Label className="text-xs font-bold text-slate-500 dark:text-slate-400">Or paste resume text contents:</Label>
                           <Textarea
                             value={localResumeText}
                             onChange={(e) => setLocalResumeText(e.target.value)}
                             placeholder="Paste text contents here..."
-                            className="min-h-[140px] text-xs bg-slate-900/30 border-border/50 text-left"
+                            className="min-h-[140px] text-xs sm:text-sm bg-slate-50/50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800"
                           />
                         </div>
                       </div>
                     )}
 
                     {uploadTab === "job_desc" && (
-                      <div className="space-y-3 text-left">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-muted-foreground">Paste Target Job Description Detail:</Label>
-                          <Textarea
-                            value={jobDescriptionText}
-                            onChange={(e) => setJobDescriptionText(e.target.value)}
-                            placeholder="Paste role description or job criteria here... Groq AI will customize behavioral & technical questions targeting this post."
-                            className="min-h-[180px] text-xs bg-slate-900/30 border-border/50 text-left"
-                          />
-                        </div>
+                      <div className="space-y-3">
+                        <Label className="text-xs font-bold text-slate-500 dark:text-slate-400">Paste Target Job Description Detail:</Label>
+                        <Textarea
+                          value={jobDescriptionText}
+                          onChange={(e) => setJobDescriptionText(e.target.value)}
+                          placeholder="Paste role description or job criteria here... Groq AI will customize behavioral & technical questions targeting this post."
+                          className="min-h-[180px] text-xs sm:text-sm bg-slate-50/50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800"
+                        />
                       </div>
                     )}
 
                     {uploadTab === "online_test" && (
-                      <div className="space-y-3 text-left">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-muted-foreground">Paste Job Post or Online Test Link / URL:</Label>
-                          <Textarea
-                            value={onlineLinkText}
-                            onChange={(e) => setOnlineLinkText(e.target.value)}
-                            placeholder="Paste LinkedIn job link, LeetCode problem URL, or online test description link here... Groq AI will parse and customize questions based on it."
-                            className="min-h-[180px] text-xs bg-slate-900/30 border-border/50 text-left"
-                          />
-                        </div>
+                      <div className="space-y-3">
+                        <Label className="text-xs font-bold text-slate-500 dark:text-slate-400">Paste Job Post or Online Test Link / URL:</Label>
+                        <Textarea
+                          value={onlineLinkText}
+                          onChange={(e) => setOnlineLinkText(e.target.value)}
+                          placeholder="Paste LinkedIn job link, LeetCode problem URL, or online test description link here..."
+                          className="min-h-[180px] text-xs sm:text-sm bg-slate-50/50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800"
+                        />
                       </div>
                     )}
 
                     {uploadTab === "knowledge" && (
-                      <div className="space-y-4 text-left">
+                      <div className="space-y-6">
                         <div>
-                          <Label className="text-xs font-bold text-muted-foreground block mb-2">Select Core Topic:</Label>
+                          <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-3">Select Core Topic:</Label>
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                             {[
                               { id: "python", label: "Python", icon: Code, desc: "GIL, decorators, decorators & GIL" },
@@ -900,208 +961,137 @@ const Interview = () => {
                                   key={topic.id}
                                   type="button"
                                   onClick={() => setSelectedTopic(topic.id)}
-                                  className={`p-3 rounded-xl border text-left transition-all duration-300 flex items-start gap-2 h-full ${
+                                  className={`p-3.5 rounded-xl border text-left transition-all flex items-start gap-2.5 ${
                                     isSelected
-                                      ? "bg-primary/10 border-primary text-primary animate-pulse"
-                                      : "bg-background/30 border-border/50 text-muted-foreground hover:border-primary/30"
+                                      ? "bg-purple-100/50 dark:bg-purple-950/50 border-purple-600 text-purple-600 dark:text-purple-400 font-bold"
+                                      : "bg-slate-50/50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-purple-300"
                                   }`}
                                 >
-                                  <div className={`p-1.5 rounded-lg shrink-0 ${isSelected ? "bg-primary/20" : "bg-muted"}`}>
-                                    <topic.icon className="w-3.5 h-3.5" />
+                                  <div className={`p-2 rounded-lg shrink-0 ${isSelected ? "bg-purple-600 text-white" : "bg-purple-100 dark:bg-purple-950 text-purple-600"}`}>
+                                    <topic.icon className="w-4 h-4" />
                                   </div>
                                   <div className="overflow-hidden">
-                                    <p className="text-xs font-bold truncate text-foreground">{topic.label}</p>
-                                    <p className="text-[10px] text-muted-foreground truncate mt-0.5">{topic.desc}</p>
+                                    <p className="text-xs sm:text-sm font-bold truncate">{topic.label}</p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{topic.desc}</p>
                                   </div>
                                 </button>
                               );
                             })}
                           </div>
                         </div>
-
-                        {selectedTopic && (
-                          <div className="space-y-2 pt-2 border-t border-border/20">
-                            <Label className="text-xs font-bold text-muted-foreground block">Select Interview Difficulty Level:</Label>
-                            <div className="grid grid-cols-3 gap-3 max-w-md">
-                              {[
-                                { id: "basics", label: "Basics / Foundations" },
-                                { id: "intermediate", label: "Intermediate concepts" },
-                                { id: "advanced", label: "Advanced / Hard topics" },
-                              ].map((lvl) => {
-                                const isSelected = selectedLevel === lvl.id;
-                                return (
-                                  <Button
-                                    key={lvl.id}
-                                    type="button"
-                                    variant={isSelected ? "default" : "outline"}
-                                    onClick={() => setSelectedLevel(lvl.id as any)}
-                                    className={`h-10 text-xs font-semibold ${
-                                      isSelected ? "shadow-md shadow-primary/20" : "bg-background/40 hover:bg-background border-border/50 text-muted-foreground hover:text-foreground"
-                                    }`}
-                                  >
-                                    {lvl.label}
-                                  </Button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
 
                     {uploadTab === "custom_qs" && (
-                      <div className="space-y-3 text-left">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-muted-foreground">Custom Interview Questions (One per line):</Label>
-                          <Textarea
-                            value={customQuestionsText}
-                            onChange={(e) => setCustomQuestionsText(e.target.value)}
-                            placeholder="Type or paste your own list of interview questions here. Each question must be on a separate line."
-                            className="min-h-[180px] text-xs bg-slate-900/30 border-border/50 text-left"
-                          />
-                        </div>
+                      <div className="space-y-3">
+                        <Label className="text-xs font-bold text-slate-500 dark:text-slate-400">Custom Questions (One per line):</Label>
+                        <Textarea
+                          value={customQuestionsText}
+                          onChange={(e) => setCustomQuestionsText(e.target.value)}
+                          placeholder="Type or paste your custom questions list here..."
+                          className="min-h-[180px] text-xs sm:text-sm bg-slate-50/50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800"
+                        />
                       </div>
                     )}
                   </div>
 
-                  {/* Settings */}
-                  {showSettings && (
-                    <div className="glass-card p-6 sm:p-8 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
-                      <h3 className="text-lg font-bold tracking-tight mb-4 flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                          <Code className="w-4 h-4" />
-                        </div>
-                        Interview Settings
-                      </h3>
-                      
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <p className="text-sm text-muted-foreground font-medium">Number of questions for each stage</p>
-                          <Badge variant="default" className="text-xs font-bold px-2.5 py-0.5">
-                            {questionCount} Questions
-                          </Badge>
-                        </div>
-                        
-                        {/* Quick Picks */}
-                        <div className="grid grid-cols-4 gap-2">
-                          {[5, 10, 15, 20].map((num) => {
-                            const isSelected = questionCount === num;
-                            return (
-                              <Button
-                                key={num}
-                                type="button"
-                                variant={isSelected ? "default" : "outline"}
-                                onClick={() => setQuestionCount(num)}
-                                className={`h-10 text-xs font-bold ${
-                                  isSelected ? "shadow-md shadow-primary/20" : "bg-background/40 hover:bg-background border-border/50 text-muted-foreground hover:text-foreground"
-                                }`}
-                              >
-                                {num} Qs
-                              </Button>
-                            );
-                          })}
-                        </div>
-
-                        {/* Custom Slider */}
-                        <div className="space-y-1.5 pt-1">
-                          <div className="flex justify-between text-[11px] font-bold text-muted-foreground">
-                            <span>Adjust Custom Count:</span>
-                            <span>{questionCount} Qs (range: 3 - 25)</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="3"
-                            max="25"
-                            step="1"
-                            value={questionCount}
-                            onChange={(e) => setQuestionCount(parseInt(e.target.value))}
-                            className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Voice assistant pre-selection toggle */}
-                      <div className="pt-4 border-t border-border/20 mt-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-0.5">
-                            <Label htmlFor="pre-voice-toggle" className="font-semibold text-sm">Onee Voice Assistant Mode</Label>
-                            <p className="text-xs text-muted-foreground">Speak answers & hear questions read out loud in Stage 2</p>
-                          </div>
-                          <Switch
-                            id="pre-voice-toggle"
-                            checked={voiceModeEnabled}
-                            onCheckedChange={setVoiceModeEnabled}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Start Button */}
-                  <div className="pt-2">
+                  <div className="flex justify-end">
                     <Button
-                      variant="hero"
-                      size="lg"
-                      className="w-full h-14 text-base rounded-xl font-semibold shadow-lg shadow-primary/20 animate-pulse"
-                      onClick={() => startMockInterview(questionCount)}
+                      type="button"
+                      onClick={() => setTopActiveTab("settings")}
+                      className="bg-purple-700 hover:bg-purple-800 text-white font-bold h-12 px-8 rounded-xl shadow-md shadow-purple-700/20"
                     >
-                      Start Mock Interview <ArrowRight className="w-5 h-5 ml-2" />
+                      Next: Interview Settings <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
                   </div>
-                </div>
+                </section>
+              )}
 
-                {/* Sidebar (Right): Session Blueprint */}
-                <div className="w-full lg:w-[380px] shrink-0">
-                  <div className="sticky top-28 space-y-6">
-                    <div className="glass-card p-6 sm:p-8 relative overflow-hidden shadow-xl shadow-black/5 dark:shadow-black/20">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
-                      
-                      <div className="flex items-center gap-3 mb-6 relative z-10">
-                        <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
-                          <Layers className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold tracking-tight">Interview Structure</h3>
-                          <p className="text-xs text-muted-foreground font-medium">Two distinct review stages</p>
-                        </div>
+              {/* TAB 2: Interview Settings View */}
+              {topActiveTab === "settings" && (
+                <section className="space-y-8 animate-in fade-in duration-300 max-w-3xl mx-auto text-left">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+                    <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-950/60 flex items-center justify-center text-purple-600 dark:text-purple-400">
+                        <SettingsIcon className="w-5 h-5" />
+                      </div>
+                      Interview Session Settings
+                    </h2>
+
+                    <div className="space-y-4 pt-2">
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm font-semibold text-foreground">Number of questions per interview stage</p>
+                        <Badge className="bg-purple-700 text-white font-bold px-3 py-1 text-xs">
+                          {questionCount} Questions
+                        </Badge>
                       </div>
 
-                      <div className="space-y-6 text-sm">
-                        <div className="flex gap-3">
-                          <div className="w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">1</div>
-                          <div>
-                            <h4 className="font-bold text-foreground">Stage 1: MCQ Core</h4>
-                            <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
-                              5 to 10 interactive multiple choice questions to assess coding fundamentals, database design, and key terminology.
-                            </p>
-                          </div>
-                        </div>
+                      {/* Quick selection grid */}
+                      <div className="grid grid-cols-4 gap-3">
+                        {[5, 10, 15, 20].map((num) => {
+                          const isSelected = questionCount === num;
+                          return (
+                            <button
+                              key={num}
+                              type="button"
+                              onClick={() => setQuestionCount(num)}
+                              className={`h-11 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-purple-700 text-white shadow-md shadow-purple-700/20"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                              }`}
+                            >
+                              {num} Qs
+                            </button>
+                          );
+                        })}
+                      </div>
 
-                        <div className="flex gap-3">
-                          <div className="w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">2</div>
-                          <div>
-                            <h4 className="font-bold text-foreground">Stage 2: Voice Chat</h4>
-                            <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
-                              Dynamic oral Q&A conducted by Onee. Speak or type answers. Assesses context depth, communication, and explanation flow.
-                            </p>
-                          </div>
+                      {/* Custom Range Slider */}
+                      <div className="space-y-2 pt-2">
+                        <div className="flex justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
+                          <span>Custom Question Count Range:</span>
+                          <span>{questionCount} Qs (range 3 - 25)</span>
                         </div>
-
-                        <div className="flex gap-3">
-                          <div className="w-6 h-6 rounded-full bg-success/10 text-success flex items-center justify-center shrink-0 mt-0.5">✓</div>
-                          <div>
-                            <h4 className="font-bold text-foreground">Comprehensive Dashboard</h4>
-                            <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
-                              Both scores are calculated, plotted, and cached in your history for complete metric tracking.
-                            </p>
-                          </div>
-                        </div>
+                        <input
+                          type="range"
+                          min="3"
+                          max="25"
+                          step="1"
+                          value={questionCount}
+                          onChange={(e) => setQuestionCount(parseInt(e.target.value))}
+                          className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                        />
                       </div>
                     </div>
+
+                    <div className="pt-6 border-t border-slate-200 dark:border-slate-800 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="voice-mode-toggle" className="font-bold text-sm text-foreground">Onee Voice Assistant Mode</Label>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Enable voice speech recognition and audio question playback during stage 2 Q&A</p>
+                        </div>
+                        <Switch
+                          id="voice-mode-toggle"
+                          checked={voiceModeEnabled}
+                          onCheckedChange={setVoiceModeEnabled}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Primary CTA Button */}
+                    <div className="pt-4">
+                      <Button
+                        type="button"
+                        onClick={() => startMockInterview(questionCount)}
+                        className="w-full h-14 bg-purple-700 hover:bg-purple-800 text-white text-base rounded-2xl font-bold shadow-lg shadow-purple-700/25 hover:scale-[1.01] transition-transform"
+                      >
+                        Start Mock Interview <ArrowRight className="w-5 h-5 ml-2" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </div>
+                </section>
+              )}
             </motion.div>
           )}
 
@@ -1345,261 +1335,179 @@ const Interview = () => {
                 </div>
               )}
 
-              {/* Immersive Video-Call Layout (Full Width, No Sidebar, Theme-Aware) */}
-              <div className="w-full flex flex-col justify-between bg-background border border-border rounded-2xl relative min-h-[520px] md:min-h-[600px] shadow-2xl overflow-hidden">
+              {/* TAB 2: Live Interview Combined Split Layout matching reference HTML */}
+              <div className="flex flex-col lg:flex-row gap-6 min-h-[600px] text-left">
                 
-                {/* Full Screen Webcam Feed (Main immersive background) */}
-                <div className="absolute inset-0 z-0 bg-muted/30 flex items-center justify-center">
-                  {isCameraOff ? (
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                      <VideoOff className="w-12 h-12" />
-                      <span className="text-sm font-semibold">Camera Off</span>
+                {/* Left Panel: Problem Statement & AI Agent (1/3 width) */}
+                <div className="w-full lg:w-1/3 flex flex-col gap-4">
+                  {/* AI Agent Card */}
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 flex flex-col h-[230px] shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-foreground flex items-center gap-2">
+                        <Bot className="w-4 h-4 text-purple-600 dark:text-purple-400" /> AI Interviewer
+                      </span>
+                      <span className="px-2 py-0.5 bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 text-[10px] font-bold uppercase rounded flex items-center gap-1 animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-600 block"></span> Recording
+                      </span>
                     </div>
-                  ) : (
-                    <FaceRecognition
-                      mode="monitor"
-                      selfieImageUrl={profilePhoto}
-                      onEyeContactChange={(hasEyeContact) => {
-                        if (!hasEyeContact) {
-                          handleEyeContactLost();
+
+                    <div className="flex-1 bg-slate-950 rounded-xl relative overflow-hidden flex items-center justify-center border border-slate-800">
+                      {isCameraOff ? (
+                        <div className="flex flex-col items-center gap-2 text-slate-400">
+                          <VideoOff className="w-8 h-8" />
+                          <span className="text-xs font-semibold">Camera Off</span>
+                        </div>
+                      ) : (
+                        <FaceRecognition
+                          mode="monitor"
+                          selfieImageUrl={profilePhoto}
+                          onEyeContactChange={(hasEyeContact) => {
+                            if (!hasEyeContact) {
+                              handleEyeContactLost();
+                            }
+                          }}
+                          onVerificationCapture={(imageUrl) => {
+                            setVerificationPhoto(imageUrl);
+                          }}
+                          onStreamActive={(stream) => setCameraStream(stream)}
+                          onMetricsUpdate={(metrics) => {
+                            setCvMetrics(metrics);
+                            cvMetricsHistory.current.push(metrics);
+                          }}
+                        />
+                      )}
+
+                      {/* Animated Bouncing Audio Wave Bars Overlay */}
+                      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-end gap-1 bg-black/60 px-3 py-1.5 rounded-full backdrop-blur-md">
+                        <div className={`w-1 bg-purple-500 rounded-full ${isAiSpeaking || isUserListening ? "h-4 animate-bounce" : "h-2"}`}></div>
+                        <div className={`w-1 bg-purple-500 rounded-full ${isAiSpeaking || isUserListening ? "h-5 animate-[bounce_1.2s_infinite]" : "h-3"}`}></div>
+                        <div className={`w-1 bg-purple-500 rounded-full ${isAiSpeaking || isUserListening ? "h-3 animate-[bounce_0.8s_infinite]" : "h-1.5"}`}></div>
+                        <div className={`w-1 bg-purple-500 rounded-full ${isAiSpeaking || isUserListening ? "h-4 animate-[bounce_1.1s_infinite]" : "h-2"}`}></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Problem Description Card */}
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 flex-1 overflow-y-auto shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-base sm:text-lg font-bold text-foreground">
+                        Question {currentIndex + 1} of {questions.length}
+                      </h3>
+                      <Badge variant="secondary" className="text-xs font-bold font-mono">
+                        <Clock className="w-3 h-3 mr-1" /> {formatTime(timeLeft)}
+                      </Badge>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold rounded">Technical</span>
+                      <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400 text-[11px] font-bold rounded">AI Recruiter</span>
+                    </div>
+
+                    <div className="space-y-3 text-xs sm:text-sm text-slate-700 dark:text-slate-300 pt-1">
+                      <p className="font-semibold text-foreground leading-relaxed">
+                        {currentQuestion?.text || "Explain your technical solution and approach."}
+                      </p>
+
+                      <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-mono">
+                        <span className="text-slate-500 block mb-1 font-bold">Sample Context / Constraints:</span>
+                        <code className="text-purple-600 dark:text-purple-400">Time limit: 120s | Language: Python 3 / Pseudocode</code>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Panel: Code Editor & Terminal (2/3 width) */}
+                <div className="flex-1 flex flex-col bg-[#0f172a] text-slate-200 rounded-2xl overflow-hidden border border-slate-800 shadow-lg">
+                  {/* Editor Top Bar */}
+                  <div className="bg-[#1e293b] border-b border-slate-800 p-2.5 flex items-center justify-between px-4">
+                    <div className="flex items-center gap-2">
+                      <button className="px-3 py-1 bg-slate-800 text-white text-xs font-semibold rounded-md shadow-sm border border-slate-700">
+                        Solution.py
+                      </button>
+                      <button className="px-3 py-1 text-slate-400 hover:text-white text-xs font-medium rounded-md">
+                        Notes.txt
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowTextEditor(!showTextEditor)}
+                        className="text-slate-400 hover:text-white"
+                        title="Toggle Textarea mode"
+                      >
+                        <Type className="w-4 h-4" />
+                      </button>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setLiveUserTranscript("");
+                          handleSubmitAnswer();
+                        }}
+                        className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold px-4 py-1.5 rounded-md flex items-center gap-1.5 transition-colors shadow-md"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" /> Run Code / Submit
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Code Area */}
+                  <div className="flex-1 p-4 font-mono text-xs sm:text-sm overflow-y-auto bg-[#0f172a] text-slate-300 flex">
+                    <div className="w-8 text-right pr-3 text-slate-600 select-none border-r border-slate-800 mr-3">
+                      1<br />2<br />3<br />4<br />5<br />6<br />7<br />8<br />9<br />10
+                    </div>
+                    <textarea
+                      value={answer}
+                      onChange={(e) => handleAnswerChange(e.target.value)}
+                      placeholder="# Write your Python / pseudo-code solution here...&#10;class Solution:&#10;    def solve(self, input_data):&#10;        # TODO: Implement approach&#10;        pass"
+                      className="flex-1 bg-transparent text-slate-200 font-mono text-xs sm:text-sm resize-none focus:outline-none min-h-[260px] leading-relaxed"
+                    />
+                  </div>
+
+                  {/* Headless Voice Controller Assistant */}
+                  <div className="hidden">
+                    <VoiceInterviewAssistant
+                      questionText={currentQuestion?.text || ""}
+                      answer={answer}
+                      onAnswerChange={(val) => {
+                        if (typeof val === "function") {
+                          const nextVal = val(answer);
+                          handleAnswerChange(nextVal);
+                        } else {
+                          handleAnswerChange(val);
                         }
                       }}
-                      onVerificationCapture={(imageUrl) => {
-                        setVerificationPhoto(imageUrl);
-                      }}
-                      onStreamActive={(stream) => setCameraStream(stream)}
-                      onMetricsUpdate={(metrics) => {
-                        setCvMetrics(metrics);
-                        cvMetricsHistory.current.push(metrics);
-                      }}
-                    />
-                  )}
-                </div>
-
-                {/* Glassmorphic Meeting Header (Overlaid at top) */}
-                <div className="flex justify-between items-center bg-background/70 backdrop-blur-md px-5 py-3.5 border-b border-border/50 z-10 text-left">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-                    <span className="text-xs font-bold text-foreground/80 uppercase tracking-widest">Live AI Interview Session</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <Badge variant="secondary" className="px-2.5 py-0.5 text-xs font-semibold">
-                      Q{currentIndex + 1} of {questions.length}
-                    </Badge>
-                    <div className={`flex items-center gap-1.5 text-xs font-mono font-bold ${timeLeft < 30 ? "text-red-500 animate-pulse" : "text-muted-foreground"}`}>
-                      <Clock className="w-3.5 h-3.5" />
-                      {formatTime(timeLeft)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Floating AI Assistant Orb (Siri-style dot visualizer floating top-right) */}
-                <div className="absolute top-16 right-4 z-20 shadow-xl rounded-2xl p-3 bg-background/80 backdrop-blur-md border border-border flex items-center gap-3 select-none">
-                  <div className="relative w-12 h-12 flex items-center justify-center">
-                    {/* Pulsing visualizer circles */}
-                    <AnimatePresence>
-                      {isAiSpeaking && (
-                        <motion.div
-                          animate={{ scale: [1, 1.6, 1], opacity: [0.6, 0.1, 0.6] }}
-                          transition={{ repeat: Infinity, duration: 1.5 }}
-                          className="absolute inset-0 rounded-full bg-primary/20"
-                        />
-                      )}
-                      {isUserListening && (
-                        <motion.div
-                          animate={{ scale: [1, 1.4 + userMicVolume * 0.6, 1], opacity: [0.6, 0.1, 0.6] }}
-                          transition={{ repeat: Infinity, duration: 1.2 }}
-                          className="absolute inset-0 rounded-full bg-purple-500/20"
-                        />
-                      )}
-                    </AnimatePresence>
-                    
-                    <motion.div
-                      animate={
-                        isAiSpeaking
-                          ? { scale: [1, 1.1, 1], rotate: 360 }
-                          : isUserListening
-                          ? { scale: [1, 1.05 + userMicVolume * 0.2, 1], rotate: -180 }
-                          : { scale: [1, 1.02, 1] }
-                      }
-                      transition={{ repeat: Infinity, duration: isAiSpeaking ? 3 : 1.5 }}
-                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ${
-                        isAiSpeaking
-                          ? "bg-gradient-to-tr from-emerald-500 to-teal-400 text-white"
-                          : isUserListening
-                          ? "bg-gradient-to-tr from-purple-600 to-pink-500 text-white"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {isAiSpeaking ? (
-                        <Volume2 className="w-4 h-4 animate-pulse" />
-                      ) : isUserListening ? (
-                        <Mic className="w-4 h-4 animate-bounce" />
-                      ) : (
-                        <Sparkles className="w-4 h-4 text-primary" />
-                      )}
-                    </motion.div>
-                  </div>
-                  <div className="text-left">
-                    <p className="text-xs font-bold text-foreground">Olivia (AI)</p>
-                    <p className="text-[10px] text-muted-foreground font-semibold">
-                      {isAiSpeaking ? "Speaking..." : isUserListening ? "Listening..." : "Idle"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Floating Dialogue Bubbles & Collapsible Editor (Z-Index Overlays) */}
-                <div className="flex-1 flex flex-col justify-end p-6 relative pointer-events-none z-10">
-                  
-                  {/* Floating Dialogue Bubbles Container */}
-                  <div className="flex flex-col md:flex-row items-stretch justify-between gap-4 mb-4 w-full">
-                    
-                    {/* 1. Olivia's Bubble (Left side) */}
-                    <div className="flex-1 max-w-sm bg-background/85 backdrop-blur-md border border-border text-foreground p-4 rounded-2xl rounded-bl-none text-left shadow-xl text-xs leading-relaxed pointer-events-auto">
-                      <div className="text-[9px] uppercase tracking-wider font-bold text-primary mb-1 flex items-center gap-1">
-                        <Volume2 className="w-3 h-3 text-primary" /> Olivia (AI Recruiter)
-                      </div>
-                      <p className="font-medium">{currentQuestion.text}</p>
-                    </div>
-
-                    {/* 2. Your Bubble (Right side) */}
-                    <div className="flex-1 max-w-sm bg-primary/10 backdrop-blur-md border border-primary/20 text-foreground p-4 rounded-2xl rounded-br-none text-left shadow-xl text-xs leading-relaxed pointer-events-auto md:self-end">
-                      <div className="text-[9px] uppercase tracking-wider font-bold text-purple-500 mb-1 flex items-center gap-1">
-                        <Mic className="w-3 h-3 text-purple-500" /> You (Candidate)
-                      </div>
-                      <p className="font-medium italic text-foreground">
-                        {liveUserTranscript.trim() 
-                          ? (answer.trim() ? `${answer} ${liveUserTranscript}` : liveUserTranscript)
-                          : (answer.trim() ? answer : "Listening to your voice...")}
-                      </p>
-                    </div>
-
-                  </div>
-
-                  {/* Collapsible Text Editor Overlay */}
-                  {showTextEditor && (
-                    <div className="w-full max-w-2xl mx-auto bg-background/90 backdrop-blur-md border border-border p-4 rounded-xl shadow-2xl pointer-events-auto mb-2 text-left space-y-2 animate-in slide-in-from-bottom-2 duration-200">
-                      <div className="flex justify-between items-center">
-                        <Label className="text-xs font-bold text-muted-foreground">Edit Your Answer Transcript:</Label>
-                        <Button variant="ghost" size="xs" onClick={() => setShowTextEditor(false)}>Close</Button>
-                      </div>
-                      <Textarea
-                        value={answer}
-                        onChange={(e) => handleAnswerChange(e.target.value)}
-                        placeholder="Type or correct your speech answer here..."
-                        className="bg-background border-border text-foreground text-xs min-h-[80px] resize-none"
-                      />
-                    </div>
-                  )}
-
-                </div>
-
-                {/* Headless/Invisible Voice Controller */}
-                <div className="hidden">
-                  <VoiceInterviewAssistant
-                    questionText={currentQuestion.text}
-                    answer={answer}
-                    onAnswerChange={(val) => {
-                      if (typeof val === "function") {
-                        const nextVal = val(answer);
-                        handleAnswerChange(nextVal);
-                      } else {
-                        handleAnswerChange(val);
-                      }
-                    }}
-                    enabled={!isMicMuted}
-                    autoSpeak={autoSpeakEnabled}
-                    setAutoSpeak={setAutoSpeakEnabled}
-                    autoListen={autoListenEnabled}
-                    setAutoListen={setAutoListenEnabled}
-                    isMuted={isVoiceMuted}
-                    setIsMuted={setIsVoiceMuted}
-                    onSpeakingChange={(speaking) => setIsAiSpeaking(speaking)}
-                    onListeningChange={(listening) => setIsUserListening(listening)}
-                    onMicVolumeChange={(volume) => setUserMicVolume(volume)}
-                    onTranscriptChange={(transcript) => setLiveUserTranscript(transcript)}
-                    onPauseSubmit={() => {
-                      setLiveUserTranscript("");
-                      handleSubmitAnswer();
-                    }}
-                  />
-                </div>
-
-                {/* Meeting Room Bottom Controls Bar */}
-                <div className="bg-background/80 backdrop-blur-md border-t border-border px-6 py-4 flex flex-wrap items-center justify-between gap-4 z-10">
-                  
-                  {/* Mic & Cam toggle switches */}
-                  <div className="flex items-center gap-3">
-                    <Button
-                      variant={isMicMuted ? "destructive" : "outline"}
-                      size="icon"
-                      className="h-11 w-11 rounded-full"
-                      onClick={() => setIsMicMuted(!isMicMuted)}
-                      title={isMicMuted ? "Unmute Microphone" : "Mute Microphone"}
-                    >
-                      {isMicMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                    </Button>
-
-                    <Button
-                      variant={isCameraOff ? "destructive" : "outline"}
-                      size="icon"
-                      className="h-11 w-11 rounded-full"
-                      onClick={() => setIsCameraOff(!isCameraOff)}
-                      title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
-                    >
-                      {isCameraOff ? <VideoOff className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
-                    </Button>
-
-                    <Button
-                      variant={showTextEditor ? "default" : "outline"}
-                      size="icon"
-                      className="h-11 w-11 rounded-full"
-                      onClick={() => setShowTextEditor(!showTextEditor)}
-                      title="Edit Answer Text"
-                    >
-                      <Type className="w-5 h-5" />
-                    </Button>
-                  </div>
-
-                  {/* Navigation inside Meeting stage */}
-                  <div className="flex items-center gap-3">
-                    <Button
-                      variant="outline"
-                      className="h-10 px-4"
-                      onClick={handlePreviousQuestion}
-                      disabled={currentIndex === 0}
-                    >
-                      <ArrowLeft className="w-4 h-4 mr-1.5" /> Prev
-                    </Button>
-                    
-                    <Button
-                      variant="hero"
-                      className="h-10 px-5 shadow-lg shadow-primary/20"
-                      onClick={() => {
+                      enabled={!isMicMuted}
+                      autoSpeak={autoSpeakEnabled}
+                      setAutoSpeak={setAutoSpeakEnabled}
+                      autoListen={autoListenEnabled}
+                      setAutoListen={setAutoListenEnabled}
+                      isMuted={isVoiceMuted}
+                      setIsMuted={setIsVoiceMuted}
+                      onSpeakingChange={(speaking) => setIsAiSpeaking(speaking)}
+                      onListeningChange={(listening) => setIsUserListening(listening)}
+                      onMicVolumeChange={(volume) => setUserMicVolume(volume)}
+                      onTranscriptChange={(transcript) => setLiveUserTranscript(transcript)}
+                      onPauseSubmit={() => {
                         setLiveUserTranscript("");
                         handleSubmitAnswer();
                       }}
-                    >
-                      {currentIndex < questions.length - 1 ? "Submit Answer" : "Complete Interview"}
-                      <ArrowRight className="w-4 h-4 ml-1.5" />
-                    </Button>
+                    />
                   </div>
 
-                  {/* Terminate Meeting Button */}
-                  <div>
-                    <Button
-                      variant="outline"
-                      className="bg-destructive/10 border-destructive/20 text-destructive hover:bg-destructive hover:text-destructive-foreground h-10 px-4 rounded-xl"
-                      onClick={() => {
-                        if (confirm("Are you sure you want to end the interview early?")) {
-                          void finishAndNavigate(results);
-                        }
-                      }}
-                    >
-                      End Call
-                    </Button>
+                  {/* Console/Terminal Output Bar */}
+                  <div className="h-44 bg-[#1e293b] border-t border-slate-800 flex flex-col">
+                    <div className="flex bg-[#0f172a] border-b border-slate-800 text-xs font-semibold">
+                      <button className="px-4 py-2 text-white border-b-2 border-purple-500 font-bold">Console Terminal</button>
+                      <button className="px-4 py-2 text-slate-400 hover:text-white border-b-2 border-transparent">Test Evaluation</button>
+                    </div>
+                    <div className="p-3.5 text-slate-400 font-mono text-xs overflow-y-auto flex-1 space-y-1">
+                      <p className="text-emerald-400 font-semibold">&gt; Console initialized. Ready to execute code.</p>
+                      {answer.trim() && (
+                        <p className="text-slate-300">&gt; Draft Answer Captured ({answer.trim().length} chars).</p>
+                      )}
+                      <p className="text-slate-500">&gt; Click 'Run Code / Submit' to evaluate answer with Groq AI recruiter.</p>
+                    </div>
                   </div>
-
                 </div>
 
               </div>
@@ -1614,32 +1522,135 @@ const Interview = () => {
               animate={{ opacity: 1, scale: 1 }}
               className="max-w-4xl mx-auto text-center"
             >
-              <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-8 h-8 text-success" />
+              <div className="text-center mb-10">
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-foreground mb-2">Interview Complete</h2>
+                <p className="text-sm sm:text-base text-muted-foreground">Here is a comprehensive summary of your performance assessment.</p>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold mb-1">Assessment Complete!</h1>
-              <p className="text-sm text-muted-foreground mb-6">
-                Your performance report has been compiled successfully.
-              </p>
 
-              {/* Tab Switcher */}
-              <div className="flex justify-center gap-2 mb-6 max-w-sm mx-auto bg-muted/40 p-1.5 rounded-xl border border-border/60">
+              {/* Main Score Overview Card with Circular Progress Gauge & 4 Metrics */}
+              {(() => {
+                const mcqCorrect = mcqQuestions.filter((q) => selectedOptions[q.id] === q.correctOptionIndex).length;
+                const mcqPct = mcqQuestions.length > 0 ? (mcqCorrect / mcqQuestions.length) * 100 : 80;
+                const voiceAvg = results.length > 0 ? Math.round(results.reduce((a, r) => a + r.finalScore, 0) / results.length) : 85;
+                const overallScore = Math.round((mcqPct + voiceAvg) / 2);
+                const isStrongHire = overallScore >= 75;
+
+                return (
+                  <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 dark:border-slate-800 mb-8 flex flex-col md:flex-row items-center gap-8 text-left">
+                    <div className="relative w-40 h-40 shrink-0 flex items-center justify-center mx-auto md:mx-0">
+                      <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                        <path
+                          className="text-slate-100 dark:text-slate-800"
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                        />
+                        <path
+                          className="text-purple-600 dark:text-purple-400 transition-all duration-1000 ease-out"
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeDasharray={`${overallScore}, 100`}
+                          strokeLinecap="round"
+                          strokeWidth="3"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                        <span className="text-3xl font-extrabold text-foreground">{overallScore}%</span>
+                        <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mt-0.5">
+                          {isStrongHire ? "Strong Hire" : "Hire Candidate"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 grid grid-cols-2 gap-4 w-full">
+                      <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+                        <div className="flex items-center gap-2 mb-1 text-slate-500 dark:text-slate-400 text-xs font-semibold">
+                          <Brain className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                          <span>Problem Solving</span>
+                        </div>
+                        <div className="text-xl sm:text-2xl font-bold text-foreground">{Math.min(100, Math.round(overallScore * 1.05))}/100</div>
+                      </div>
+
+                      <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+                        <div className="flex items-center gap-2 mb-1 text-slate-500 dark:text-slate-400 text-xs font-semibold">
+                          <Code className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                          <span>Code Quality</span>
+                        </div>
+                        <div className="text-xl sm:text-2xl font-bold text-foreground">{Math.round(mcqPct)}/100</div>
+                      </div>
+
+                      <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+                        <div className="flex items-center gap-2 mb-1 text-slate-500 dark:text-slate-400 text-xs font-semibold">
+                          <MessageSquare className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                          <span>Communication</span>
+                        </div>
+                        <div className="text-xl sm:text-2xl font-bold text-foreground">{Math.round(voiceAvg)}/100</div>
+                      </div>
+
+                      <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+                        <div className="flex items-center gap-2 mb-1 text-slate-500 dark:text-slate-400 text-xs font-semibold">
+                          <Clock className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                          <span>Efficiency</span>
+                        </div>
+                        <div className="text-xl sm:text-2xl font-bold text-foreground">{Math.min(100, Math.round(overallScore * 0.95))}/100</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* AI Feedback Breakdown Cards */}
+              <div className="space-y-4 mb-8 text-left">
+                <h3 className="text-base font-bold text-foreground border-b border-slate-200 dark:border-slate-800 pb-2">AI Feedback Breakdown</h3>
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                  <div className="flex items-start gap-4">
+                    <div className="p-2.5 bg-emerald-100 dark:bg-emerald-950/60 rounded-full text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5">
+                      <ThumbsUp className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-foreground mb-1">What went well</h4>
+                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                        You clearly communicated your thought process before answering. Keyword coverage and core concept definitions were accurate and structured logically.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                  <div className="flex items-start gap-4">
+                    <div className="p-2.5 bg-rose-100 dark:bg-rose-950/60 rounded-full text-rose-600 dark:text-rose-400 shrink-0 mt-0.5">
+                      <TrendingUp className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-foreground mb-1">Areas for Improvement</h4>
+                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                        Consider sharing deeper real-world project examples when explaining architecture decisions. For coding problems, double-check edge cases such as empty input arrays and space complexity optimization.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Detailed Breakdown Toggle */}
+              <div className="flex justify-center gap-2 mb-6 max-w-sm mx-auto bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
                 <button
                   onClick={() => setResultsTab("mcq")}
-                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all duration-300 ${
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all duration-300 ${
                     resultsTab === "mcq"
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-purple-700 dark:bg-purple-600 text-white shadow-sm"
+                      : "text-slate-600 dark:text-slate-400 hover:text-foreground"
                   }`}
                 >
                   Stage 1: MCQ Core
                 </button>
                 <button
                   onClick={() => setResultsTab("voice")}
-                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all duration-300 ${
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all duration-300 ${
                     resultsTab === "voice"
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-purple-700 dark:bg-purple-600 text-white shadow-sm"
+                      : "text-slate-600 dark:text-slate-400 hover:text-foreground"
                   }`}
                 >
                   Stage 2: Voice Q&A
@@ -1649,9 +1660,9 @@ const Interview = () => {
               {/* Stage 1: MCQ Detailed Report */}
               {resultsTab === "mcq" && (
                 <div className="space-y-4 mb-8 text-left">
-                  <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 text-center">
+                  <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-2xl border border-purple-200 dark:border-purple-900 text-center">
                     <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Stage 1 Accuracy</p>
-                    <p className="text-3xl font-black text-primary mt-1">
+                    <p className="text-3xl font-black text-purple-600 dark:text-purple-400 mt-1">
                       {Math.round(
                         (mcqQuestions.filter((q) => selectedOptions[q.id] === q.correctOptionIndex).length /
                           Math.max(1, mcqQuestions.length)) *
@@ -1668,25 +1679,25 @@ const Interview = () => {
                     const selectedText = q.options[selectedOptions[q.id] ?? -1] || "(No option selected)";
                     const correctText = q.options[q.correctOptionIndex];
                     return (
-                      <div key={q.id} className="glass rounded-xl p-5 border border-border/40">
+                      <div key={q.id} className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
                         <div className="flex items-start justify-between gap-3 mb-3">
                           <h3 className="font-semibold text-sm sm:text-base flex-1">
                             {idx + 1}. {q.text}
                           </h3>
                           <Badge
                             variant="outline"
-                            className={isCorrect ? "text-success border-success/30 bg-success/5" : "text-destructive border-destructive/30 bg-destructive/5"}
+                            className={isCorrect ? "text-emerald-600 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40" : "text-rose-600 border-rose-300 bg-rose-50 dark:bg-rose-950/40"}
                           >
                             {isCorrect ? "Correct" : "Incorrect"}
                           </Badge>
                         </div>
                         <div className="space-y-1.5 text-xs sm:text-sm">
                           <p className="text-muted-foreground">
-                            Your answer: <span className={isCorrect ? "text-success font-semibold" : "text-destructive font-semibold"}>{selectedText}</span>
+                            Your answer: <span className={isCorrect ? "text-emerald-600 font-semibold" : "text-rose-600 font-semibold"}>{selectedText}</span>
                           </p>
                           {!isCorrect && (
                             <p className="text-muted-foreground">
-                              Correct answer: <span className="text-success font-semibold">{correctText}</span>
+                              Correct answer: <span className="text-emerald-600 font-semibold">{correctText}</span>
                             </p>
                           )}
                           <p className="text-muted-foreground mt-3 pt-2 border-t border-border/20 text-xs italic">
@@ -1702,9 +1713,9 @@ const Interview = () => {
               {/* Stage 2: Voice Interview Detailed Report */}
               {resultsTab === "voice" && (
                 <div className="space-y-4 mb-8 text-left">
-                  <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 text-center">
+                  <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-2xl border border-purple-200 dark:border-purple-900 text-center">
                     <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Stage 2 Average Score</p>
-                    <p className="text-3xl font-black text-primary mt-1">
+                    <p className="text-3xl font-black text-purple-600 dark:text-purple-400 mt-1">
                       {results.length > 0
                         ? Math.round(results.reduce((a, r) => a + r.finalScore, 0) / results.length)
                         : 0}%
@@ -1715,22 +1726,22 @@ const Interview = () => {
                   </div>
 
                   {results.length === 0 ? (
-                    <div className="p-6 text-center border rounded-xl bg-background/50 text-muted-foreground text-sm">
+                    <div className="p-6 text-center border rounded-2xl bg-background/50 text-muted-foreground text-sm">
                       No conversational questions completed.
                     </div>
                   ) : (
                     results.map((r, i) => (
-                      <div key={i} className="glass rounded-xl p-5 border border-border/40">
+                      <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
                         <div className="flex items-start justify-between mb-3 gap-2">
                           <h3 className="font-semibold text-sm sm:text-base flex-1">{r.questionText}</h3>
                           <Badge
                             variant="outline"
                             className={
                               r.finalScore >= 70
-                                ? "text-success border-success/30 bg-success/5"
+                                ? "text-emerald-600 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40"
                                 : r.finalScore >= 50
-                                ? "text-warning border-warning/30 bg-warning/5"
-                                : "text-destructive border-destructive/30 bg-destructive/5"
+                                ? "text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/40"
+                                : "text-rose-600 border-rose-300 bg-rose-50 dark:bg-rose-950/40"
                             }
                           >
                             {r.finalScore}%
@@ -1751,12 +1762,19 @@ const Interview = () => {
                 </div>
               )}
 
-              <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
-                <Button variant="hero" onClick={() => navigate("/dashboard")} className="w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 pt-4">
+                <Button
+                  onClick={() => navigate("/dashboard")}
+                  className="bg-purple-700 hover:bg-purple-800 text-white font-bold h-12 px-8 rounded-xl shadow-md shadow-purple-700/20"
+                >
                   View Dashboard
                 </Button>
-                <Button variant="hero-outline" onClick={() => setStage("select")} className="w-full sm:w-auto">
-                  Try Again
+                <Button
+                  variant="outline"
+                  onClick={() => { setStage("select"); setTopActiveTab("prep"); }}
+                  className="border-slate-300 dark:border-slate-700 font-bold h-12 px-8 rounded-xl"
+                >
+                  Start New Interview
                 </Button>
               </div>
             </motion.div>

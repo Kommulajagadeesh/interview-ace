@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
+  ArrowLeft,
   Shield, 
   User, 
   Settings, 
@@ -773,8 +774,23 @@ const ExamArea = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl min-h-[calc(100vh-80px)] flex flex-col justify-center">
+    <div className="container mx-auto px-4 py-8 max-w-6xl min-h-[calc(100vh-80px)] flex flex-col justify-center relative">
       
+      {/* Top Left Return Button - Left Arrow Only */}
+      {mode === "select" && (
+        <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigate("/")}
+            title="Return to Dashboard"
+            className="w-10 h-10 rounded-full flex items-center justify-center bg-background/90 backdrop-blur-md border-border/60 hover:bg-primary/10 hover:border-primary/40 text-foreground shadow-md hover:scale-110 active:scale-95 transition-all cursor-pointer"
+          >
+            <ArrowLeft className="w-5 h-5 text-primary" />
+          </Button>
+        </div>
+      )}
+
       {/* -------------------------------------------------------------
           MODE SELECT SCREEN
           ------------------------------------------------------------- */}

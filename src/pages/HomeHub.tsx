@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Video, BarChart2, BookOpen, Settings, ChevronRight } from "lucide-react";
+import { Video, BarChart2, Settings, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
 
 const cards = [
@@ -18,14 +18,6 @@ const cards = [
     to: "/dashboard",
     bgClass: "bg-emerald-100 dark:bg-emerald-900/40",
     iconColor: "text-emerald-500",
-  },
-  {
-    title: "Learning Hub",
-    description: "Access study materials and prepare for questions.",
-    icon: BookOpen,
-    to: "/learning",
-    bgClass: "bg-fuchsia-100 dark:bg-fuchsia-900/40",
-    iconColor: "text-fuchsia-500",
   },
 ];
 

@@ -26,8 +26,9 @@ const Navbar = () => {
 
   const links = [
     { to: "/home", label: "Home" },
-    { to: "/learning", label: "Learning" },
+    { to: "/exam-area", label: "Exam Area" },
     { to: "/interview", label: "Video Interview" },
+    { to: "/dashboard", label: "ATS Score" },
     { to: "/dashboard", label: "Dashboard" },
   ];
 

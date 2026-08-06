@@ -3,22 +3,31 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
-import HomeHub from "./pages/HomeHub";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import Interview from "./pages/Interview";
 import Dashboard from "./pages/Dashboard";
-import Learning from "./pages/Learning";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/AdminDashboard";
 import ProfileSetup from "./pages/ProfileSetup";
 import Results from "./pages/Results";
 import ExamArea from "./pages/ExamArea";
-import { isAdminLoggedIn } from "./lib/auth";
-import { SidebarLayout } from "./components/SidebarLayout";
+import { isUserLoggedIn, isProfileSetupComplete, isAdminLoggedIn } from "./lib/auth";
 
 const queryClient = new QueryClient();
+
+const RequireUserAuth = () => {
+  if (!isUserLoggedIn()) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!isProfileSetupComplete()) {
+    return <Navigate to="/profile-setup" replace />;
+  }
+
+  return <Outlet />;
+};
 
 const RequireAdminAuth = () => {
   if (!isAdminLoggedIn()) {
@@ -38,16 +47,16 @@ const App = () => (
         <Sonner />
         <BrowserRouter future={{ v7_relativeSplatPath: true }}>
           <Routes>
-            <Route path="/" element={<Landing />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/profile-setup" element={<ProfileSetup />} />
 
-            <Route element={<SidebarLayout />}>
-              <Route path="/home" element={<HomeHub />} />
-              <Route path="/learning" element={<Learning />} />
-              <Route path="/interview" element={<Interview />} />
+            {/* Standalone User Routes without Left Sidebar */}
+            <Route element={<RequireUserAuth />}>
+              <Route path="/home" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/interview" element={<Interview />} />
               <Route path="/results" element={<Results />} />
               <Route path="/exam-area" element={<ExamArea />} />
             </Route>

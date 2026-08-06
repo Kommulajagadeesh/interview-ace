@@ -252,7 +252,7 @@ const VoiceAssistant = ({
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+    <div className="fixed bottom-14 right-6 sm:right-8 z-50 flex flex-col items-end">
       {/* Floating Card */}
       <AnimatePresence>
         {isOpen && (
@@ -395,25 +395,25 @@ const VoiceAssistant = ({
                     exit={{ opacity: 0, height: 0 }}
                     className="space-y-1.5 overflow-hidden text-xs"
                   >
-                    <div className="flex items-start gap-1 p-1 bg-secondary/5 border border-border/20 rounded">
-                      <code className="text-primary font-mono text-[10px] shrink-0 font-bold bg-secondary px-1 py-0.5 rounded">"remove settings"</code>
-                      <span className="text-muted-foreground">— Hides settings panel</span>
+                    <div className="flex items-center gap-2 p-1.5 bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 rounded-lg">
+                      <code className="text-purple-700 dark:text-purple-300 font-mono text-xs font-bold bg-purple-50/90 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/80 px-2 py-0.5 rounded-md shrink-0 shadow-2xs">"remove settings"</code>
+                      <span className="text-slate-600 dark:text-slate-300 text-xs font-medium">— Hides settings panel</span>
                     </div>
-                    <div className="flex items-start gap-1 p-1 bg-secondary/5 border border-border/20 rounded">
-                      <code className="text-primary font-mono text-[10px] shrink-0 font-bold bg-secondary px-1 py-0.5 rounded">"add settings"</code>
-                      <span className="text-muted-foreground">— Shows settings panel</span>
+                    <div className="flex items-center gap-2 p-1.5 bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 rounded-lg">
+                      <code className="text-purple-700 dark:text-purple-300 font-mono text-xs font-bold bg-purple-50/90 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/80 px-2 py-0.5 rounded-md shrink-0 shadow-2xs">"add settings"</code>
+                      <span className="text-slate-600 dark:text-slate-300 text-xs font-medium">— Shows settings panel</span>
                     </div>
-                    <div className="flex items-start gap-1 p-1 bg-secondary/5 border border-border/20 rounded">
-                      <code className="text-primary font-mono text-[10px] shrink-0 font-bold bg-secondary px-1 py-0.5 rounded">"start interview"</code>
-                      <span className="text-muted-foreground">— Starts the mock session</span>
+                    <div className="flex items-center gap-2 p-1.5 bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 rounded-lg">
+                      <code className="text-purple-700 dark:text-purple-300 font-mono text-xs font-bold bg-purple-50/90 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/80 px-2 py-0.5 rounded-md shrink-0 shadow-2xs">"start interview"</code>
+                      <span className="text-slate-600 dark:text-slate-300 text-xs font-medium">— Starts the mock session</span>
                     </div>
-                    <div className="flex items-start gap-1 p-1 bg-secondary/5 border border-border/20 rounded">
-                      <code className="text-primary font-mono text-[10px] shrink-0 font-bold bg-secondary px-1 py-0.5 rounded">"go to dashboard"</code>
-                      <span className="text-muted-foreground">— Opens dashboard page</span>
+                    <div className="flex items-center gap-2 p-1.5 bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 rounded-lg">
+                      <code className="text-purple-700 dark:text-purple-300 font-mono text-xs font-bold bg-purple-50/90 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/80 px-2 py-0.5 rounded-md shrink-0 shadow-2xs">"go to dashboard"</code>
+                      <span className="text-slate-600 dark:text-slate-300 text-xs font-medium">— Opens dashboard page</span>
                     </div>
-                    <div className="flex items-start gap-1 p-1 bg-secondary/5 border border-border/20 rounded">
-                      <code className="text-primary font-mono text-[10px] shrink-0 font-bold bg-secondary px-1 py-0.5 rounded">"go home"</code>
-                      <span className="text-muted-foreground">— Navigates back home</span>
+                    <div className="flex items-center gap-2 p-1.5 bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 rounded-lg">
+                      <code className="text-purple-700 dark:text-purple-300 font-mono text-xs font-bold bg-purple-50/90 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/80 px-2 py-0.5 rounded-md shrink-0 shadow-2xs">"go home"</code>
+                      <span className="text-slate-600 dark:text-slate-300 text-xs font-medium">— Navigates back home</span>
                     </div>
                   </motion.div>
                 )}
@@ -423,34 +423,34 @@ const VoiceAssistant = ({
         )}
       </AnimatePresence>
 
-      {/* Floating Mic Button (Pulsing when voice is heard or speaking) */}
+      {/* Floating Mic Button - Large High-Visibility Size */}
       <motion.button
         onClick={() => setIsOpen(!isOpen)}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-xl border-2 transition-all duration-300 ${
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.92 }}
+        className={`w-20 h-20 sm:w-22 sm:h-22 rounded-full flex items-center justify-center shadow-2xl border-2 transition-all duration-300 ${
           isOpen
-            ? "bg-card border-primary/40 text-primary"
+            ? "bg-card border-primary text-primary shadow-primary/30"
             : listening
-            ? "bg-primary border-primary text-primary-foreground shadow-primary/30 animate-pulse ring-4 ring-primary/10"
+            ? "bg-primary border-primary text-primary-foreground shadow-primary/50 ring-4 ring-primary/30"
             : speaking
-            ? "bg-success border-success text-success-foreground shadow-success/30 animate-pulse ring-4 ring-success/10"
-            : "bg-primary border-primary text-primary-foreground shadow-primary/20"
+            ? "bg-success border-success text-success-foreground shadow-success/50 ring-4 ring-success/30"
+            : "bg-gradient-to-tr from-primary via-purple-600 to-indigo-600 border-white/40 text-white shadow-primary/40 hover:shadow-primary/60 ring-2 ring-primary/20"
         }`}
         title="Open AI Voice Assistant"
       >
-        <div className="relative">
+        <div className="relative flex items-center justify-center">
           {listening ? (
-            <Mic className="w-6 h-6 animate-bounce" />
+            <Mic className="w-10 h-10 sm:w-11 sm:h-11 animate-bounce" />
           ) : speaking ? (
-            <Volume2 className="w-6 h-6" />
+            <Volume2 className="w-10 h-10 sm:w-11 sm:h-11" />
           ) : (
-            <Mic className="w-6 h-6" />
+            <Mic className="w-10 h-10 sm:w-11 sm:h-11" />
           )}
           
           {/* Notification Dot */}
           {!isOpen && !listening && !speaking && (
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary-foreground border border-primary rounded-full animate-ping" />
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 border-2 border-white rounded-full animate-ping" />
           )}
         </div>
       </motion.button>

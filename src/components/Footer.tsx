@@ -10,7 +10,6 @@ const Footer = () => {
           </Link>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <Link to="/home" className="hover:text-primary transition-colors">Home</Link>
-            <Link to="/learning" className="hover:text-primary transition-colors">Learning</Link>
             <Link to="/interview" className="hover:text-primary transition-colors">Interview</Link>
           </div>
         </div>

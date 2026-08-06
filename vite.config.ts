@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: true,
     port: 8080,
-    strictPort: true,
+    strictPort: false,
     hmr: {
       overlay: false,
     },
@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => ({
   preview: {
     host: true,
     port: 8080,
-    strictPort: true,
+    strictPort: false,
   },
   plugins: [react()],
   resolve: {

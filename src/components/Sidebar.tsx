@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Home, Video, BarChart2, BookOpen, Settings, LogOut, Moon, Sun, Monitor, Shield } from "lucide-react";
+import { Home, Video, BarChart2, Settings, LogOut, Moon, Sun, Monitor, Shield } from "lucide-react";
 import { clearUserAuth, getCurrentUserEmail, getSelfieKey } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/ThemeProvider";
@@ -46,10 +46,9 @@ const Sidebar = () => {
 
   const navItems = [
     { to: "/home", label: "Home", icon: Home },
+    { to: "/exam-area", label: "Exam Area", icon: Shield },
     { to: "/interview", label: "Video Interview", icon: Video },
     { to: "/dashboard", label: "Dashboard", icon: BarChart2 },
-    { to: "/learning", label: "Learning", icon: BookOpen },
-    { to: "/exam-area", label: "Exam Area", icon: Shield },
   ];
 
   return (
@@ -69,7 +68,7 @@ const Sidebar = () => {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.to;
+          const isActive = location.pathname === item.to || (item.to === "/home" && location.pathname === "/dashboard") || (item.to === "/dashboard" && location.pathname === "/home");
           return (
             <Link
               key={item.to}
