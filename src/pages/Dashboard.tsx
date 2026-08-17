@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { getCurrentUserEmail, getSelfieKey, syncInterviewSessionsFromDatabase, getInterviewResultsKey, clearUserAuth } from "@/lib/auth";
+import { getCurrentUserEmail, getSelfieKey, syncInterviewSessionsFromDatabase, getInterviewResultsKey, clearUserAuth, getUserProfile } from "@/lib/auth";
+import { getSSOSession, StudentProfile } from "@/lib/sso";
 import { toast } from "sonner";
 import LeaderboardRankings from "@/components/LeaderboardRankings";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -66,10 +67,20 @@ export const Dashboard = () => {
     );
   };
 
+  const [ssoProfile, setSsoProfile] = useState<StudentProfile | null>(null);
+
+  const displayResumeScore = ssoProfile?.resumeScore !== undefined && ssoProfile?.resumeScore !== null
+    ? (ssoProfile.resumeScore > 100 ? ssoProfile.resumeScore : Math.round(ssoProfile.resumeScore * 10))
+    : 742;
+
   useEffect(() => {
-    const email = getCurrentUserEmail();
-    if (email) {
-      setUserEmail(email);
+    const sso = getSSOSession();
+    const activeEmail = sso?.email || getCurrentUserEmail() || "";
+    if (activeEmail) {
+      setUserEmail(activeEmail);
+    }
+    if (sso) {
+      setSsoProfile(sso);
     }
     try {
       const rawSelfie = localStorage.getItem(getSelfieKey());
@@ -92,8 +103,8 @@ export const Dashboard = () => {
     }
     setSessions(stored);
 
-    if (email) {
-      syncInterviewSessionsFromDatabase(email).then((dbSessions) => {
+    if (activeEmail) {
+      syncInterviewSessionsFromDatabase(activeEmail).then((dbSessions) => {
         if (dbSessions && dbSessions.length > 0) {
           setSessions(dbSessions);
         }
@@ -152,7 +163,7 @@ export const Dashboard = () => {
   };
 
   return (
-    <div className="bg-surface-dim text-on-surface h-screen max-h-screen overflow-hidden relative font-['Geist',sans-serif] text-xs flex flex-col justify-between">
+    <div className="bg-surface-dim text-on-surface min-h-screen overflow-x-hidden relative font-['Geist',sans-serif] text-xs flex flex-col justify-between">
       {/* Atmospheric Gradient Background */}
       <div className="fixed inset-0 w-full h-full bg-gradient-to-br from-surface-dim via-background to-surface-container-low opacity-60 pointer-events-none z-0"></div>
 
@@ -272,7 +283,7 @@ export const Dashboard = () => {
       </header>
 
       {/* Main Single View Dashboard Layout */}
-      <main className="flex-1 w-full pt-20 sm:pt-22 pb-14 px-4 sm:px-8 max-w-[1500px] mx-auto flex flex-col justify-between overflow-hidden relative z-10">
+      <main className="flex-1 w-full pt-20 sm:pt-22 pb-24 px-4 sm:px-8 max-w-[1500px] mx-auto flex flex-col justify-between relative z-10 overflow-y-auto">
         <div className="flex flex-col gap-2.5 h-full justify-between">
           {/* Hero Header Section */}
           <section className="flex items-center justify-between gap-2 shrink-0">
@@ -370,7 +381,7 @@ export const Dashboard = () => {
                     <h3 className="font-bold text-xs text-on-surface">Resume Analyzer</h3>
                   </div>
                   <div className="bg-[#e6f4f5] text-[#006670] px-2 py-0.5 rounded-full text-[9px] font-bold">
-                    742 / 1000
+                    {displayResumeScore} / 1000
                   </div>
                 </div>
 
@@ -378,7 +389,7 @@ export const Dashboard = () => {
                   <div>
                     <span className="text-[8px] font-bold uppercase tracking-wider opacity-80 block mb-0.5">RESUME SCORE</span>
                     <div className="flex items-baseline gap-1">
-                      <h2 className="text-lg font-extrabold leading-none">742</h2>
+                      <h2 className="text-lg font-extrabold leading-none">{displayResumeScore}</h2>
                       <span className="text-white/70 text-[9px]">/1000</span>
                     </div>
                     <p className="text-white/80 text-[7.5px] font-bold uppercase tracking-wider mt-0.5">OPTIMIZATION RECOMMENDED</p>
@@ -535,9 +546,13 @@ export const Dashboard = () => {
           </section>
 
           {/* Bottom Row: Clean Standalone Action Buttons (No Card Slide) */}
-          <section className="shrink-0 flex items-center justify-center gap-4 py-1">
+          <section className="shrink-0 flex items-center justify-center gap-4 py-2 mt-3 mb-2 relative z-20">
             <button
-              onClick={() => setShowAiCoachModal(true)}
+              onClick={() => {
+                const learnLoopUrl = import.meta.env.VITE_LEARNLOOP_URL || import.meta.env.VITE_SMARTNOTE_URL || "https://crt.vssa.site/";
+                toast.info("Navigating to LearnLoop / SmartNote Core Platform...");
+                window.open(learnLoopUrl, "_blank");
+              }}
               className="bg-primary text-on-primary px-5 py-2 rounded-full flex items-center gap-2 shadow-md shadow-primary/25 hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all border border-white/20 cursor-pointer text-xs font-bold"
             >
               <span className="material-symbols-outlined text-[18px]">menu_book</span>
@@ -546,7 +561,11 @@ export const Dashboard = () => {
             </button>
 
             <button
-              onClick={() => navigate("/exam-area")}
+              onClick={() => {
+                const gameZoneUrl = import.meta.env.VITE_GAMEZONE_APP_URL || "https://vs-game-zone.web.app";
+                toast.info("Navigating to Game Zone...");
+                window.open(gameZoneUrl, "_blank");
+              }}
               className="bg-secondary text-on-primary px-5 py-2 rounded-full flex items-center gap-2 shadow-md shadow-secondary/25 hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all border border-white/20 cursor-pointer text-xs font-bold"
             >
               <span className="material-symbols-outlined text-[18px]">sports_esports</span>
@@ -648,7 +667,7 @@ export const Dashboard = () => {
 
       {/* Floating AI Coach Widget */}
       <div
-        className="fixed bottom-14 right-4 w-10 h-10 z-50 glass-panel rounded-full shadow-lg flex items-center justify-center border border-primary/20 transition-all duration-300 hover:-translate-y-0.5 cursor-pointer"
+        className="fixed bottom-16 right-4 w-10 h-10 z-50 glass-panel rounded-full shadow-lg flex items-center justify-center border border-primary/20 transition-all duration-300 hover:-translate-y-0.5 cursor-pointer"
         id="ai-coach"
         onClick={() => setShowAiCoachModal(true)}
       >

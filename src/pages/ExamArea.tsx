@@ -26,7 +26,10 @@ import {
   Trophy,
   Download,
   XCircle,
-  HelpCircle
+  HelpCircle,
+  Briefcase,
+  BarChart2,
+  Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import FaceRecognition from "@/components/FaceRecognition";
+import { saveInterviewSession } from "@/lib/auth";
 
 // Firebase imports
 import { db } from "@/lib/firebase";
@@ -63,6 +67,12 @@ interface CodingQuestion {
   initialCode: string;
 }
 
+interface ViolationSnapshot {
+  timestamp: string;
+  reason: string;
+  snapshotUrl: string;
+}
+
 interface StudentRecord {
   name: string;
   email: string;
@@ -70,8 +80,11 @@ interface StudentRecord {
   answers: any[];
   warnings: number;
   status: "active" | "locked" | "submitted";
-  logs: { timestamp: string; message: string; type: "info" | "warning" | "error" }[];
+  logs: { timestamp: string; message: string; type: "info" | "warning" | "error"; snapshotUrl?: string }[];
   photoUrl?: string;
+  cheatingSnapshots?: ViolationSnapshot[];
+  lastViolationPhoto?: string;
+  lastViolationReason?: string;
 }
 
 interface ExamSession {
@@ -117,6 +130,169 @@ const ExamArea = () => {
   const [questionCount, setQuestionCount] = useState(3);
   const [showAnswersAfterExam, setShowAnswersAfterExam] = useState(true);
   const [pdfTextContext, setPdfTextContext] = useState("");
+  const [cameraSize, setCameraSize] = useState<"sm" | "md" | "lg">("md");
+  const pdfFileInputRef = useRef<HTMLInputElement>(null);
+  const [activeWarningModal, setActiveWarningModal] = useState<{
+    show: boolean;
+    warningNum: number;
+    reason: string;
+    snapshotUrl?: string;
+  }>({ show: false, warningNum: 0, reason: "" });
+
+  const extractTextFromPDF = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (typeof window !== "undefined" && !(window as any).pdfjsLib) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js";
+        script.onload = () => {
+          (window as any).pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+          readPDFData(file).then(resolve).catch(reject);
+        };
+        script.onerror = () => reject(new Error("Failed to load PDF parser from CDN"));
+        document.body.appendChild(script);
+      } else {
+        readPDFData(file).then(resolve).catch(reject);
+      }
+    });
+  };
+
+  const readPDFData = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const typedarray = new Uint8Array(reader.result as ArrayBuffer);
+          const pdfjsLib = (window as any).pdfjsLib;
+          const pdf = await pdfjsLib.getDocument(typedarray).promise;
+          let fullText = "";
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map((item: any) => item.str).join(" ");
+            fullText += pageText + "\n";
+          }
+          resolve(fullText);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const handlePdfFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    const loadingToast = toast.loading(`Uploading and reading ${file.name}...`);
+
+    try {
+      if (ext === "pdf") {
+        const extractedText = await extractTextFromPDF(file);
+        setPdfTextContext(extractedText || "");
+        toast.dismiss(loadingToast);
+        toast.success(`PDF "${file.name}" uploaded & parsed successfully!`);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const text = evt.target?.result as string;
+          setPdfTextContext(text || "");
+          toast.dismiss(loadingToast);
+          toast.success(`File "${file.name}" uploaded successfully!`);
+        };
+        reader.readAsText(file);
+      }
+    } catch (err) {
+      console.warn("PDF extract issue, falling back to basic text read:", err);
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const text = evt.target?.result as string;
+        setPdfTextContext(text || "");
+        toast.dismiss(loadingToast);
+        toast.success(`File "${file.name}" loaded successfully!`);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleSimulatePdfUpload = () => {
+    const sampleMcqData = `Smart Interview AI - Python Practice Exam Sheet
+
+Q1. What is the output of print(2 ** 3) in Python?
+A. 6
+B. 8
+C. 9
+D. 5
+Answer: B
+
+Q2. Which of the following is a mutable data structure in Python?
+A. Tuple
+B. List
+C. String
+D. Integer
+Answer: B
+
+Q3. What does the "len()" function do in Python?
+A. Returns the type of an object
+B. Returns the memory address of an object
+C. Returns the number of items in an object
+D. Converts a string to uppercase
+Answer: C
+
+Q4. How do you start a comment block in Python?
+A. //
+B. /*
+C. #
+D. <!--
+Answer: C
+
+Q5. Which keyword is used to define a function in Python?
+A. function
+B. define
+C. def
+D. func
+Answer: C
+
+Q6. What is the value of 5 // 2 in Python?
+A. 2.5
+B. 2
+C. 3
+D. 2.0
+Answer: B
+
+Q7. How can you add an element to the end of a list?
+A. list.add(element)
+B. list.insert(element)
+C. list.append(element)
+D. list.push(element)
+Answer: C
+
+Q8. Which method is used to remove all whitespace from the beginning and end of a string?
+A. strip()
+B. trim()
+C. clear()
+D. replace()
+Answer: A
+
+Q9. What is the output of print("Hello" + " " + "World")?
+A. Hello World
+B. HelloWorld
+C. Hello+World
+D. Error
+Answer: A
+
+Q10. Which statement is used to exit a loop early in Python?
+A. exit
+B. stop
+C. break
+D. continue
+Answer: C`;
+
+    setPdfTextContext(sampleMcqData);
+    toast.success("Simulated PDF Uploaded: Sample MCQs loaded into syllabus!");
+  };
 
   // Room Entry Forms
   const [studentRoomId, setStudentRoomId] = useState("");
@@ -931,12 +1107,12 @@ const ExamArea = () => {
   };
 
   // Warning Accumulator
-  const triggerCheatWarning = async (reason: string) => {
+  const triggerCheatWarning = async (reason: string, snapshotUrl?: string) => {
     if (!activeSession || !currentStudentEmail) return;
 
     const now = Date.now();
-    if (now - lastCheatWarningTimeRef.current < 4000) {
-      // Cooldown 4s between face/gaze/window warnings to prevent spam
+    if (now - lastCheatWarningTimeRef.current < 3500) {
+      // Cooldown 3.5s between warnings to prevent spam
       return;
     }
     lastCheatWarningTimeRef.current = now;
@@ -945,30 +1121,62 @@ const ExamArea = () => {
     setStudentWarnings(nextWarnings);
 
     let status: "active" | "locked" = "active";
-    if (nextWarnings >= 3) {
+    let isTerminated = false;
+
+    if (nextWarnings >= 4) {
       status = "locked";
-      setMode("student_login");
-      document.exitFullscreen().catch(() => {});
-      toast.error("Exam Locked! You exceeded 3 anti-cheat warnings. Request invigilator unlock PIN.");
+      isTerminated = true;
     }
 
+    const timestampStr = new Date().toLocaleTimeString();
+
+    const snapshotItem: ViolationSnapshot = {
+      timestamp: timestampStr,
+      reason,
+      snapshotUrl: snapshotUrl || ""
+    };
+
     const newLog = {
-      timestamp: new Date().toLocaleTimeString(),
-      message: `Anti-cheat violation: ${reason} (Warning ${nextWarnings}/3)`,
-      type: "warning" as const
+      timestamp: timestampStr,
+      message: `Anti-cheat violation ${nextWarnings > 3 ? "4 (Terminated)" : `${nextWarnings}/3`}: ${reason}`,
+      type: "warning" as const,
+      snapshotUrl: snapshotUrl || ""
     };
 
     const updatedLogs = [...studentLogs, newLog];
     setStudentLogs(updatedLogs);
 
+    const existingStudent = activeSession.students[currentStudentEmail];
+    const existingSnapshots = existingStudent?.cheatingSnapshots || [];
+    const updatedSnapshots = snapshotUrl ? [...existingSnapshots, snapshotItem] : existingSnapshots;
+
     updateLocalStudentState((prev) => ({
       ...prev,
       warnings: nextWarnings,
       status,
-      logs: updatedLogs
+      logs: updatedLogs,
+      lastViolationPhoto: snapshotUrl || prev.lastViolationPhoto,
+      lastViolationReason: reason,
+      cheatingSnapshots: updatedSnapshots
     }));
 
-    toast.warning(`Violation Warning: ${reason}! (${nextWarnings} / 3)`);
+    // Trigger Popup Warning Alert Modal to Candidate
+    setActiveWarningModal({
+      show: true,
+      warningNum: nextWarnings,
+      reason,
+      snapshotUrl: snapshotUrl || existingStudent?.lastViolationPhoto
+    });
+
+    if (isTerminated) {
+      toast.error("4th Security Violation! Exam auto-terminated and locked.", { duration: 5000 });
+      document.exitFullscreen().catch(() => {});
+      setTimeout(() => {
+        submitExamAutomatically();
+      }, 3500);
+    } else {
+      toast.warning(`Violation Warning ${nextWarnings}/3: ${reason}`);
+    }
 
     try {
       await updateDoc(
@@ -976,11 +1184,13 @@ const ExamArea = () => {
         {
           warnings: nextWarnings,
           status,
-          logs: updatedLogs
+          logs: updatedLogs,
+          ...(snapshotUrl ? { lastViolationPhoto: snapshotUrl, lastViolationReason: reason } : {}),
+          cheatingSnapshots: updatedSnapshots
         }
       );
     } catch (err) {
-      console.error(err);
+      console.error("Firestore violation update error:", err);
     }
   };
 
@@ -1167,6 +1377,62 @@ const ExamArea = () => {
     }
   };
 
+  // Export full audit report for a student
+  const handleExportStudentReport = (student: any, session: any) => {
+    try {
+      const reportLines = [
+        `====================================================`,
+        `SMART INTERVIEW AI - CANDIDATE AUDIT REPORT`,
+        `====================================================`,
+        `Generated At: ${new Date().toLocaleString()}`,
+        `Candidate Name: ${student.name}`,
+        `Email Address: ${student.email}`,
+        `Exam Room ID: ${session.examRoomId}`,
+        `Exam Title: ${session.title}`,
+        `Topic Category: ${session.category}`,
+        `Exam Format: ${session.examType ? session.examType.toUpperCase() : "MCQ"}`,
+        `Session Status: ${student.status.toUpperCase()}`,
+        `Anti-Cheat Warnings: ${student.warnings} / 3`,
+        `Final Score: ${getStudentScore(student, session)} / ${session.questions.length}`,
+        ``,
+        `----------------------------------------------------`,
+        `SUBMITTED ANSWERS & RESPONSES`,
+        `----------------------------------------------------`,
+        ...session.questions.map((q: any, idx: number) => {
+          const ans = student.answers[idx];
+          if (session.examType === "coding") {
+            return `\n[Coding Question ${idx + 1}]\nPrompt: ${q.text}\nSubmitted Code:\n${typeof ans === "string" && ans.trim() ? ans : "# No code written"}\n`;
+          } else {
+            const isCorrect = ans === q.correctOption;
+            return `[Q${idx + 1}] ${q.text}\n  - Candidate Answer: ${ans >= 0 && q.options[ans] ? q.options[ans] : "Not Answered"}\n  - Correct Option: ${q.options[q.correctOption]}\n  - Result: ${isCorrect ? "CORRECT (+1)" : "INCORRECT (0)"}\n`;
+          }
+        }),
+        ``,
+        `----------------------------------------------------`,
+        `ANTI-CHEAT TELEMETRY AUDIT LOGS`,
+        `----------------------------------------------------`,
+        ...(student.logs && student.logs.length > 0
+          ? student.logs.map((l: any) => `[${l.timestamp}] [${l.type ? l.type.toUpperCase() : "INFO"}] ${l.message}`)
+          : ["No violations recorded."]),
+        `====================================================`
+      ].join("\n");
+
+      const blob = new Blob([reportLines], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Candidate_Report_${student.name.replace(/\s+/g, "_")}_${session.examRoomId}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success(`Exported complete audit report for ${student.name}`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to export student report.");
+    }
+  };
+
   // Leaderboard sorting helper
   const getLeaderboardList = () => {
     if (!activeSession) return [];
@@ -1174,6 +1440,259 @@ const ExamArea = () => {
       return getStudentScore(b, activeSession) - getStudentScore(a, activeSession);
     });
   };
+
+  if (mode === "create") {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#f8f9fc] flex font-sans antialiased text-slate-800 overflow-y-auto">
+        {/* Left Sidebar Rail */}
+        <aside className="w-16 border-r border-slate-200/80 bg-white flex flex-col items-center py-5 gap-6 flex-shrink-0 hidden sm:flex">
+          <button 
+            type="button" 
+            onClick={() => setMode("select")}
+            className="w-10 h-10 rounded-2xl bg-[#f0ebfe] text-[#7c3aed] flex items-center justify-center hover:bg-[#e4d8ff] transition-colors shadow-xs cursor-pointer"
+            title="Back to Mode Selection"
+          >
+            <Plus className="w-5 h-5 text-[#7c3aed]" />
+          </button>
+          <div className="flex flex-col items-center gap-6 mt-2">
+            <button type="button" className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
+              <Briefcase className="w-5 h-5" />
+            </button>
+            <button type="button" className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
+              <BarChart2 className="w-5 h-5" />
+            </button>
+            <button type="button" className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
+              <Settings className="w-5 h-5" />
+            </button>
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+          <form onSubmit={handleCreateExam} className="h-full flex flex-col justify-between">
+            <div>
+              {/* Header Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h1 className="text-2xl font-extrabold text-slate-900 flex items-center gap-2">
+                    <Plus className="w-6 h-6 text-[#7c3aed]" />
+                    Create Secure Exam
+                  </h1>
+                  <p className="text-xs text-slate-500 font-medium mt-1">
+                    Configure parameters and content to generate a secured assessment room.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setMode("select")}
+                    className="px-5 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold text-xs hover:bg-slate-50 shadow-xs transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-semibold text-xs shadow-md shadow-purple-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    Secure & Launch Room <ChevronRight className="w-4 h-4 text-white" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Main 2-Column Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                {/* Left Card - Form Parameters */}
+                <div className="lg:col-span-6 xl:col-span-6 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6 flex flex-col justify-between">
+                  <div>
+                    {/* EXAM FORMAT MODE */}
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase block mb-3">
+                        EXAM FORMAT MODE
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Option 1: MCQ */}
+                        <div
+                          onClick={() => {
+                            setExamType("mcq");
+                            setQuestionCount(5);
+                          }}
+                          className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-3.5 ${
+                            examType === "mcq"
+                              ? "border-[#7c3aed] bg-white shadow-xs"
+                              : "border-slate-200/80 bg-slate-50/50 hover:bg-slate-100/50"
+                          }`}
+                        >
+                          <div className="w-10 h-10 rounded-xl bg-[#f0ebfe] flex items-center justify-center text-[#7c3aed] flex-shrink-0">
+                            <FileText className="w-5 h-5 text-[#7c3aed]" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 block">Upload PDF / Raw MCQs</span>
+                            <span className="text-[11px] text-slate-400 block mt-0.5">Multiple choice questions</span>
+                          </div>
+                        </div>
+
+                        {/* Option 2: Coding */}
+                        <div
+                          onClick={() => {
+                            setExamType("coding");
+                            setQuestionCount(3);
+                          }}
+                          className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-3.5 ${
+                            examType === "coding"
+                              ? "border-[#7c3aed] bg-white shadow-xs"
+                              : "border-slate-200/80 bg-slate-50/50 hover:bg-slate-100/50"
+                          }`}
+                        >
+                          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0">
+                            <Code className="w-5 h-5 text-slate-400" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 block">Coding Simulation</span>
+                            <span className="text-[11px] text-slate-400 block mt-0.5">LeetCode editor window</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* EXAM DETAILS */}
+                    <div className="mt-6">
+                      <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase block mb-3">
+                        EXAM DETAILS
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Exam Title</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Python Advanced Concepts"
+                            value={examTitle}
+                            onChange={(e) => setExamTitle(e.target.value)}
+                            className="w-full h-10 px-3.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-[#7c3aed] shadow-xs transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Topic Category</label>
+                          <select
+                            value={examCategory}
+                            onChange={(e) => setExamCategory(e.target.value)}
+                            className="w-full h-10 px-3.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-[#7c3aed] shadow-xs transition-all cursor-pointer appearance-none pr-8 bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:16px_16px] bg-[right_10px_center] bg-no-repeat"
+                          >
+                            <option value="Python">Python</option>
+                            <option value="Java">Java</option>
+                            <option value="React">React</option>
+                            <option value="Database">SQL Databases</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Duration (Minutes)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="180"
+                            value={examDuration}
+                            onChange={(e) => setExamDuration(parseInt(e.target.value) || 1)}
+                            className="w-full h-10 px-3.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-[#7c3aed] shadow-xs transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Number of Questions</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max={examType === "coding" ? 3 : 5}
+                            value={questionCount}
+                            onChange={(e) => setQuestionCount(parseInt(e.target.value) || 1)}
+                            className="w-full h-10 px-3.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-[#7c3aed] shadow-xs transition-all"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Show Corrections Checkbox Card */}
+                  {examType === "mcq" && (
+                    <div className="mt-6 p-4 rounded-xl border border-blue-100/70 bg-[#f4f7fd] flex items-start gap-3.5">
+                      <input
+                        type="checkbox"
+                        id="show-corrections"
+                        checked={showAnswersAfterExam}
+                        onChange={(e) => setShowAnswersAfterExam(e.target.checked)}
+                        className="w-4 h-4 mt-0.5 rounded text-[#2563eb] bg-[#2563eb] border-blue-600 focus:ring-0 cursor-pointer accent-[#2563eb]"
+                      />
+                      <div>
+                        <label htmlFor="show-corrections" className="text-xs font-bold text-slate-900 cursor-pointer block">
+                          Show Answer Corrections after Submit
+                        </label>
+                        <p className="text-[11px] text-slate-500 font-normal leading-relaxed mt-0.5">
+                          Allows candidates to view the answer key and corrections once their exam paper is submitted.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Card - Syllabus / Questions Data */}
+                <div className="lg:col-span-6 xl:col-span-6 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between min-h-[440px]">
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
+                        SYLLABUS / QUESTIONS DATA
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => pdfFileInputRef.current?.click()}
+                          className="px-3.5 py-1.5 rounded-xl border border-purple-200/80 bg-[#f6f0ff] hover:bg-[#ede5ff] text-[#7c3aed] text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Upload className="w-3.5 h-3.5 text-[#7c3aed]" /> Upload PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSimulatePdfUpload}
+                          className="px-3.5 py-1.5 rounded-xl border border-purple-200/80 bg-[#f6f0ff] hover:bg-[#ede5ff] text-[#7c3aed] text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-[#7c3aed]" /> Simulate Upload
+                        </button>
+                      </div>
+                      <input
+                        type="file"
+                        ref={pdfFileInputRef}
+                        accept=".pdf,.txt,.doc,.docx"
+                        onChange={handlePdfFileUpload}
+                        className="hidden"
+                      />
+                    </div>
+
+                    {/* Textarea Box Container */}
+                    <div className="relative rounded-xl border border-slate-200/80 bg-[#f8fafc] p-5 flex flex-col justify-between min-h-[380px]">
+                      <textarea
+                        rows={12}
+                        value={pdfTextContext}
+                        onChange={(e) => setPdfTextContext(e.target.value)}
+                        placeholder={`Paste sample exam MCQs or syllabus rules here (e.g. Q1. Text... A. Option1... B. Option2... Answer: B).\n\nThe AI will automatically structure them into the secure exam console...`}
+                        className="w-full flex-1 bg-transparent resize-none focus:outline-none text-xs text-slate-700 leading-relaxed placeholder:text-slate-400 border-none p-0 focus:ring-0"
+                      />
+
+                      {/* Bottom Right Floating Badge */}
+                      <div className="flex justify-end pt-2">
+                        <button
+                          type="button"
+                          onClick={handleSimulatePdfUpload}
+                          className="px-4 py-2 rounded-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-[11px] font-bold shadow-md flex items-center gap-1.5 transition-all cursor-pointer select-none"
+                        >
+                          <Zap className="w-3.5 h-3.5 text-white fill-white" /> AI Auto-Structure Ready
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </form>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl min-h-[calc(100vh-80px)] flex flex-col justify-center relative">
@@ -1252,155 +1771,7 @@ const ExamArea = () => {
         </div>
       )}
 
-      {/* -------------------------------------------------------------
-          CREATE EXAM SCREEN (ADMIN)
-          ------------------------------------------------------------- */}
-      {mode === "create" && (
-        <Card className="max-w-2xl mx-auto w-full bg-card/50 backdrop-blur-md border border-border/50 shadow-2xl">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold flex items-center gap-2">
-              <Plus className="w-6 h-6 text-primary" /> Create Secure Exam
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Upload PDF materials or setup coding simulation tasks to generate your secured room.
-            </CardDescription>
-          </CardHeader>
-          <form onSubmit={handleCreateExam}>
-            <CardContent className="space-y-4">
-              
-              {/* Select Exam Type (MCQ vs Coding) */}
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold">Exam Format Mode</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  <div 
-                    onClick={() => {
-                      setExamType("mcq");
-                      setQuestionCount(5);
-                    }}
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                      examType === "mcq" 
-                        ? "bg-primary/10 border-primary shadow-sm"
-                        : "border-border bg-secondary/20 hover:bg-secondary/40"
-                    }`}
-                  >
-                    <FileText className={`w-5 h-5 ${examType === "mcq" ? "text-primary" : "text-muted-foreground"}`} />
-                    <div className="text-left">
-                      <div className="text-xs font-bold">Upload PDF / Raw MCQs</div>
-                      <div className="text-[10px] text-muted-foreground">Multiple choice questions</div>
-                    </div>
-                  </div>
-                  <div 
-                    onClick={() => {
-                      setExamType("coding");
-                      setQuestionCount(3);
-                    }}
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                      examType === "coding" 
-                        ? "bg-primary/10 border-primary shadow-sm"
-                        : "border-border bg-secondary/20 hover:bg-secondary/40"
-                    }`}
-                  >
-                    <Code className={`w-5 h-5 ${examType === "coding" ? "text-primary" : "text-muted-foreground"}`} />
-                    <div className="text-left">
-                      <div className="text-xs font-bold">Coding Simulation</div>
-                      <div className="text-[10px] text-muted-foreground">LeetCode editor window</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="exam-title" className="text-xs font-semibold">Exam Title</Label>
-                  <Input 
-                    id="exam-title" 
-                    placeholder="e.g. Python Advanced Concepts" 
-                    value={examTitle}
-                    onChange={(e) => setExamTitle(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="exam-category" className="text-xs font-semibold">Topic Category</Label>
-                  <select 
-                    id="exam-category"
-                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    value={examCategory}
-                    onChange={(e) => setExamCategory(e.target.value)}
-                  >
-                    <option value="Python">Python</option>
-                    <option value="Java">Java</option>
-                    <option value="React">React</option>
-                    <option value="Database">SQL Databases</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="exam-duration" className="text-xs font-semibold">Duration (Minutes)</Label>
-                  <Input 
-                    id="exam-duration" 
-                    type="number"
-                    min="1"
-                    max="180"
-                    value={examDuration}
-                    onChange={(e) => setExamDuration(parseInt(e.target.value) || 1)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="exam-qcount" className="text-xs font-semibold">Number of Questions</Label>
-                  <Input 
-                    id="exam-qcount" 
-                    type="number"
-                    min="1"
-                    max={examType === "coding" ? 3 : 5}
-                    value={questionCount}
-                    onChange={(e) => setQuestionCount(parseInt(e.target.value) || 1)}
-                  />
-                </div>
-              </div>
-
-              {/* Show Corrections Setting */}
-              {examType === "mcq" && (
-                <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-secondary/15 text-xs text-left">
-                  <div className="space-y-0.5 max-w-[80%]">
-                    <Label className="font-bold">Show Answer Corrections after Submit</Label>
-                    <p className="text-[10px] text-muted-foreground">Allows candidates to view the answer key and corrections once their exam paper is submitted.</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={showAnswersAfterExam}
-                    onChange={(e) => setShowAnswersAfterExam(e.target.checked)}
-                    className="w-4 h-4 rounded text-primary border-border focus:ring-0 cursor-pointer"
-                  />
-                </div>
-              )}
-
-              {examType === "mcq" && (
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label htmlFor="exam-pdf" className="text-xs font-semibold">Syllabus PDF / Questions Raw Data Copy-Paste</Label>
-                    <span className="text-[10px] text-primary flex items-center gap-1 font-semibold cursor-pointer">
-                      <Upload className="w-3 h-3" /> Simulate PDF Upload
-                    </span>
-                  </div>
-                  <Textarea 
-                    id="exam-pdf" 
-                    placeholder="Paste sample exam MCQs or syllabus rules here (e.g. Q1. Text... A. Option1... B. Option2... Answer: B). The AI will structure them into the exam console..."
-                    rows={4}
-                    value={pdfTextContext}
-                    onChange={(e) => setPdfTextContext(e.target.value)}
-                  />
-                </div>
-              )}
-            </CardContent>
-            <CardFooter className="flex justify-between border-t border-border/50 pt-4">
-              <Button type="button" variant="ghost" onClick={() => setMode("select")}>Cancel</Button>
-              <Button type="submit" className="font-semibold">Secure & Launch Room <ChevronRight className="w-4 h-4 ml-1" /></Button>
-            </CardFooter>
-          </form>
-        </Card>
-      )}
 
       {/* -------------------------------------------------------------
           ADMIN LIVE MONITOR PANEL
@@ -1783,7 +2154,7 @@ const ExamArea = () => {
 
             return (
               <div className="fixed inset-0 bg-background/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                <Card className="max-w-3xl w-full max-h-[90vh] flex flex-col justify-between bg-card border border-border shadow-2xl overflow-hidden">
+                <Card className="max-w-3xl w-full max-h-[92vh] flex flex-col justify-between bg-card border border-border shadow-2xl overflow-hidden">
                   <CardHeader className="border-b border-border/50 py-4 px-6 flex flex-row justify-between items-center bg-secondary/20">
                     <div className="flex items-center gap-3">
                       {renderStudentAvatar(inspectedStudent, "w-12 h-12")}
@@ -1801,56 +2172,104 @@ const ExamArea = () => {
                         </CardDescription>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedStudentEmail(null)}>Close</Button>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleExportStudentReport(inspectedStudent, activeSession)}
+                        className="h-8 text-xs font-semibold border-primary/30 text-primary hover:bg-primary/10"
+                      >
+                        <Download className="w-3.5 h-3.5 mr-1" /> Export Audit Report
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedStudentEmail(null)}>Close</Button>
+                    </div>
                   </CardHeader>
 
                   <CardContent className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Red Security Violation Banner if Warnings Present */}
+                    {(inspectedStudent.warnings > 0 || inspectedStudent.status === "locked" || inspectedStudent.lastViolationPhoto) && (
+                      <div className="p-4 rounded-xl bg-destructive/15 border-2 border-destructive/40 text-left space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-destructive text-sm flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 animate-bounce" />
+                            🚨 CHEATING / SECURITY VIOLATION REPORT
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-destructive text-destructive-foreground">
+                            {inspectedStudent.warnings >= 4 ? "AUTO-TERMINATED" : `${inspectedStudent.warnings} / 3 WARNINGS`}
+                          </span>
+                        </div>
+                        <p className="text-xs text-foreground font-semibold">
+                          <span className="text-destructive font-bold">Latest Violation:</span> {inspectedStudent.lastViolationReason || "Head turned / Face missing in camera frame"}
+                        </p>
+                      </div>
+                    )}
+
                     {/* Identity & Quick Stats Header Grid */}
                     <div className="grid sm:grid-cols-3 gap-4">
-                      {/* Identity Card */}
-                      <div className="sm:col-span-1 bg-secondary/30 border border-border/50 rounded-xl p-4 flex flex-col items-center justify-center text-center space-y-2">
-                        {inspectedStudent.photoUrl ? (
-                          <img 
-                            src={inspectedStudent.photoUrl} 
-                            alt={inspectedStudent.name} 
-                            className="w-24 h-24 rounded-xl object-cover border-2 border-primary/50 shadow-md"
-                          />
-                        ) : (
-                          <div className="w-24 h-24 rounded-xl bg-gradient-to-br from-primary/20 to-primary/60 text-primary-foreground font-black flex items-center justify-center text-2xl shadow-inner border border-primary/40">
-                            {inspectedStudent.name.split(" ").map(n=>n[0]).join("").toUpperCase().slice(0, 2)}
+                      {/* Identity Card & Violation Photo Side-by-Side */}
+                      <div className="sm:col-span-1 bg-secondary/30 border border-border/50 rounded-xl p-4 flex flex-col items-center justify-center text-center space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+                          <div className="flex flex-col items-center space-y-1">
+                            {inspectedStudent.photoUrl ? (
+                              <img 
+                                src={inspectedStudent.photoUrl} 
+                                alt={inspectedStudent.name} 
+                                className="w-20 h-20 rounded-xl object-cover border-2 border-primary/50 shadow-md"
+                              />
+                            ) : (
+                              <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-primary/20 to-primary/60 text-primary-foreground font-black flex items-center justify-center text-xl shadow-inner border border-primary/40">
+                                {inspectedStudent.name.split(" ").map(n=>n[0]).join("").toUpperCase().slice(0, 2)}
+                              </div>
+                            )}
+                            <span className="text-[10px] font-bold text-muted-foreground">Selfie Photo ID</span>
                           </div>
-                        )}
-                        <div className="text-xs font-bold text-foreground mt-1">Photo Identity</div>
+
+                          <div className="flex flex-col items-center space-y-1">
+                            {inspectedStudent.lastViolationPhoto ? (
+                              <img 
+                                src={inspectedStudent.lastViolationPhoto} 
+                                alt="Cheating Violation" 
+                                className="w-20 h-20 rounded-xl object-cover border-2 border-destructive shadow-md animate-pulse"
+                              />
+                            ) : (
+                              <div className="w-20 h-20 rounded-xl bg-secondary/50 text-muted-foreground text-[10px] flex items-center justify-center text-center p-2 border border-border/40">
+                                No Violation Snapshot
+                              </div>
+                            )}
+                            <span className="text-[10px] font-extrabold text-destructive">🚨 Violation Snapshot</span>
+                          </div>
+                        </div>
+
                         <span className="text-[10px] px-2 py-0.5 rounded bg-success/15 text-success border border-success/30 font-semibold flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" /> AI Face Verified
+                          <CheckCircle className="w-3 h-3" /> AI Monitoring Active
                         </span>
                       </div>
 
                       {/* Performance & Status Box */}
                       <div className="sm:col-span-2 bg-secondary/30 border border-border/50 rounded-xl p-4 flex flex-col justify-between space-y-3 text-left">
-                        <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                           <div className="p-2.5 rounded-lg bg-card/60 border border-border/40">
                             <span className="text-[10px] text-muted-foreground uppercase font-bold">Leaderboard Rank</span>
-                            <div className="text-lg font-extrabold text-primary flex items-center gap-1.5 mt-0.5">
+                            <div className="text-base font-extrabold text-primary flex items-center gap-1.5 mt-0.5">
                               <Trophy className="w-4 h-4 text-amber-500" /> Rank #{rankNum}
                             </div>
                           </div>
                           <div className="p-2.5 rounded-lg bg-card/60 border border-border/40">
                             <span className="text-[10px] text-muted-foreground uppercase font-bold">Current Score</span>
-                            <div className="text-lg font-extrabold text-foreground mt-0.5">
+                            <div className="text-base font-extrabold text-foreground mt-0.5">
                               {getStudentScore(inspectedStudent, activeSession)} / {activeSession.questions.length}
                             </div>
                           </div>
                           <div className="p-2.5 rounded-lg bg-card/60 border border-border/40">
                             <span className="text-[10px] text-muted-foreground uppercase font-bold">Anti-Cheat Warnings</span>
-                            <div className="text-lg font-extrabold text-destructive mt-0.5">
+                            <div className="text-base font-extrabold text-destructive mt-0.5">
                               {inspectedStudent.warnings} / 3
                             </div>
                           </div>
                           <div className="p-2.5 rounded-lg bg-card/60 border border-border/40">
                             <span className="text-[10px] text-muted-foreground uppercase font-bold">Session Status</span>
                             <div className="mt-0.5">
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-extrabold ${
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                                 inspectedStudent.status === "active" ? "bg-success/15 text-success border border-success/30" :
                                 inspectedStudent.status === "locked" ? "bg-destructive/15 text-destructive border border-destructive/30" :
                                 "bg-primary/15 text-primary border border-primary/30"
@@ -1859,18 +2278,50 @@ const ExamArea = () => {
                               </span>
                             </div>
                           </div>
+                          <div className="p-2.5 rounded-lg bg-card/60 border border-border/40">
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold">Category</span>
+                            <div className="text-xs font-bold text-foreground mt-0.5">
+                              {activeSession.category}
+                            </div>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-card/60 border border-border/40">
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold">Format</span>
+                            <div className="text-xs font-bold text-foreground mt-0.5">
+                              {activeSession.examType ? activeSession.examType.toUpperCase() : "MCQ"}
+                            </div>
+                          </div>
                         </div>
 
-                        {inspectedStudent.status === "locked" && (
-                          <Button 
-                            variant="destructive" 
-                            size="sm" 
-                            className="w-full font-bold"
-                            onClick={() => handleAdminResetStudent(inspectedStudent.email)}
+                        {/* Admin Supervisory Controls */}
+                        <div className="flex gap-2 pt-1">
+                          {inspectedStudent.status === "locked" ? (
+                            <Button 
+                              variant="destructive" 
+                              size="sm" 
+                              className="w-full font-bold text-xs"
+                              onClick={() => handleAdminResetStudent(inspectedStudent.email)}
+                            >
+                              <Unlock className="w-3.5 h-3.5 mr-1" /> Unlock Candidate Session
+                            </Button>
+                          ) : (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="w-full font-bold text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
+                              onClick={() => handleAdminResetStudent(inspectedStudent.email)}
+                            >
+                              <RefreshCw className="w-3.5 h-3.5 mr-1" /> Reset Warnings to 0
+                            </Button>
+                          )}
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="font-bold text-xs shrink-0"
+                            onClick={() => handleExportStudentReport(inspectedStudent, activeSession)}
                           >
-                            <Unlock className="w-4 h-4 mr-1.5" /> Unlock Candidate Session
+                            <Download className="w-3.5 h-3.5 mr-1" /> Report
                           </Button>
-                        )}
+                        </div>
                       </div>
                     </div>
 
@@ -1886,7 +2337,12 @@ const ExamArea = () => {
                           if (activeSession.examType === "coding") {
                             return (
                               <div key={idx} className="p-4 rounded-xl border border-border/40 bg-secondary/20 space-y-2">
-                                <div className="text-xs font-bold text-primary">Question {idx + 1}: {q.text}</div>
+                                <div className="text-xs font-bold text-primary flex justify-between items-center">
+                                  <span>Question {idx + 1}: {q.text}</span>
+                                  <span className="text-[10px] text-muted-foreground font-mono">
+                                    {typeof submission === "string" ? `${submission.length} chars` : "0 chars"}
+                                  </span>
+                                </div>
                                 <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg font-mono text-xs text-slate-100 whitespace-pre overflow-x-auto">
                                   {typeof submission === "string" && submission.trim() ? submission : "# No code written yet"}
                                 </div>
@@ -1902,7 +2358,7 @@ const ExamArea = () => {
                                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                       isCorrect ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"
                                     }`}>
-                                      {isCorrect ? "CORRECT" : "INCORRECT"}
+                                      {isCorrect ? "CORRECT (+1)" : "INCORRECT (0)"}
                                     </span>
                                   )}
                                 </div>
@@ -1910,11 +2366,11 @@ const ExamArea = () => {
                                   <div className="p-2 rounded bg-card border border-border/40">
                                     <span className="text-muted-foreground font-semibold">Candidate Selected: </span>
                                     <span className="font-bold text-foreground">
-                                      {submission >= 0 ? q.options[submission] : "Not Answered"}
+                                      {submission >= 0 && q.options[submission] ? q.options[submission] : "Not Answered"}
                                     </span>
                                   </div>
                                   <div className="p-2 rounded bg-card border border-border/40">
-                                    <span className="text-muted-foreground font-semibold">Correct Option: </span>
+                                    <span className="text-muted-foreground font-semibold">Correct Answer Key: </span>
                                     <span className="font-bold text-success">
                                       {q.options[q.correctOption]}
                                     </span>
@@ -1930,13 +2386,13 @@ const ExamArea = () => {
                     {/* Anti-cheat audit history */}
                     <div className="space-y-2 text-left">
                       <div className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <Shield className="w-4 h-4 text-warning" /> Telemetry Violation Audit Log
+                        <Shield className="w-4 h-4 text-warning" /> Live Telemetry & Anti-Cheat Violation Audit Log
                       </div>
                       <div className="bg-secondary/20 border border-border/40 rounded-xl p-3 max-h-[160px] overflow-y-auto space-y-1.5 font-mono text-[11px]">
                         {inspectedStudent.logs.length === 0 ? (
                           <div className="text-muted-foreground italic py-4 text-center">No violations recorded for this candidate.</div>
                         ) : (
-                          inspectedStudent.logs.map((l, i) => (
+                          inspectedStudent.logs.map((l: any, i: number) => (
                             <div key={i} className={`p-1.5 rounded border ${
                               l.type === "warning" ? "bg-warning/10 border-warning/30 text-warning" :
                               l.type === "error" ? "bg-destructive/10 border-destructive/30 text-destructive" :
@@ -2122,20 +2578,59 @@ const ExamArea = () => {
           <div className="flex-1 grid md:grid-cols-4 gap-6 p-6 overflow-hidden relative">
             
             {/* Left Column: Live camera monitoring overlay */}
-            <div className="md:col-span-1 flex flex-col justify-between gap-4 h-full">
-              <Card className="bg-card/40 backdrop-blur-sm border border-border/40 overflow-hidden relative flex-1 flex flex-col justify-between shadow-xl">
-                <div className="p-3 bg-secondary/30 border-b border-border/30 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
-                  <Video className="w-3.5 h-3.5 text-primary" /> AI Camera Tracking
+            <div className="md:col-span-1 flex flex-col gap-4">
+              <Card className="bg-card/40 backdrop-blur-sm border border-border/40 overflow-hidden relative shadow-xl flex flex-col">
+                <div className="p-3 bg-secondary/30 border-b border-border/30 text-[10px] font-bold uppercase tracking-wider flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Video className="w-3.5 h-3.5 text-primary" /> AI Camera Tracking
+                  </div>
+
+                  {/* Size Toggle Buttons */}
+                  <div className="flex items-center gap-1 bg-secondary/80 p-0.5 rounded border border-border/40">
+                    <button 
+                      type="button"
+                      onClick={() => setCameraSize("sm")}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold transition-colors cursor-pointer ${cameraSize === "sm" ? "bg-primary text-primary-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
+                      title="Small Camera Box (140px)"
+                    >
+                      S
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setCameraSize("md")}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold transition-colors cursor-pointer ${cameraSize === "md" ? "bg-primary text-primary-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
+                      title="Medium Camera Box (195px)"
+                    >
+                      M
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setCameraSize("lg")}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold transition-colors cursor-pointer ${cameraSize === "lg" ? "bg-primary text-primary-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
+                      title="Large Camera Box (250px)"
+                    >
+                      L
+                    </button>
+                  </div>
                 </div>
                 
                 {/* Embedded webcam frame */}
-                <div className="flex-1 relative bg-black/10 flex items-center justify-center p-3">
-                  <div className="w-full h-full rounded-lg overflow-hidden border border-border/50 relative">
+                <div className="p-3 bg-black/10 flex items-center justify-center">
+                  <div 
+                    className={`w-full rounded-lg overflow-hidden border border-border/50 relative bg-black shadow-inner transition-all duration-300 ${
+                      cameraSize === "sm" ? "max-h-[140px] aspect-[4/3]" :
+                      cameraSize === "lg" ? "max-h-[250px] aspect-[4/3]" :
+                      "max-h-[195px] aspect-[4/3]"
+                    }`}
+                  >
                     {isFaceTrackingActive ? (
                       <FaceRecognition
                         mode="monitor"
                         compact={true}
                         enabled={isFaceTrackingActive}
+                        onViolationSnapshot={(snapshotUrl, reason) => {
+                          triggerCheatWarning(reason, snapshotUrl);
+                        }}
                         onEyeContactChange={(hasContact) => {
                           if (!hasContact) {
                             triggerCheatWarning("Candidate turned head / looked away from screen");
@@ -2306,6 +2801,61 @@ const ExamArea = () => {
 
           </div>
 
+          {/* Candidate Anti-Cheat Warning Popup Modal */}
+          {activeWarningModal.show && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+              <Card className="max-w-md w-full bg-card border-2 border-destructive shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                <CardHeader className="bg-destructive/15 border-b border-destructive/30 text-center py-4">
+                  <div className="flex justify-center mb-2">
+                    <div className="w-12 h-12 rounded-full bg-destructive/20 text-destructive flex items-center justify-center animate-bounce">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                  </div>
+                  <CardTitle className="text-xl font-bold text-destructive">
+                    {activeWarningModal.warningNum >= 4
+                      ? "EXAM AUTO-TERMINATED!"
+                      : `SECURITY WARNING (${activeWarningModal.warningNum} / 3)`}
+                  </CardTitle>
+                  <CardDescription className="text-xs font-semibold text-foreground mt-1">
+                    {activeWarningModal.warningNum >= 4
+                      ? "You exceeded 3 security warnings. Your exam paper has been automatically locked & submitted."
+                      : "Anti-cheat AI detected a camera or position violation."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4 text-center">
+                  <div className="p-3 bg-secondary/40 rounded-xl border border-border/50 text-xs font-semibold text-foreground leading-relaxed">
+                    <span className="text-destructive font-bold">Violation Reason:</span> {activeWarningModal.reason}
+                  </div>
+
+                  {activeWarningModal.snapshotUrl && (
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Captured Camera Violation Snapshot</div>
+                      <img 
+                        src={activeWarningModal.snapshotUrl} 
+                        alt="Violation Snapshot" 
+                        className="w-full h-40 object-cover rounded-xl border-2 border-destructive/40 shadow-md"
+                      />
+                    </div>
+                  )}
+
+                  <div className="text-[11px] text-muted-foreground leading-relaxed">
+                    {activeWarningModal.warningNum >= 4
+                      ? "All violation snapshots and logs have been reported to the Invigilator Dashboard."
+                      : "Please look straight at the camera and remain inside the frame. 4th violation will result in immediate exam termination."}
+                  </div>
+                </CardContent>
+                <CardFooter className="bg-secondary/20 border-t border-border/40 p-4">
+                  <Button 
+                    className={`w-full font-bold h-11 ${activeWarningModal.warningNum >= 4 ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : "bg-primary hover:bg-primary/90 text-primary-foreground"}`}
+                    onClick={() => setActiveWarningModal({ show: false, warningNum: 0, reason: "" })}
+                  >
+                    {activeWarningModal.warningNum >= 4 ? "View Submission Summary" : "I Acknowledge & Resume Exam"}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </div>
+          )}
+
           {/* Footer Controls */}
           <div className="bg-card/60 backdrop-blur-md border-t border-border/50 px-6 py-4 flex items-center justify-between z-10 text-xs">
             <div className="text-muted-foreground text-left">
@@ -2345,14 +2895,12 @@ const ExamArea = () => {
         const candidateEmail = student?.email || currentStudentEmail || "candidate@example.com";
         
         // Save score to global leaderboard for Intelligence Dashboard
-        import("@/lib/auth").then(({ saveInterviewSession }) => {
-          saveInterviewSession({
-            date: new Date().toISOString(),
-            category: activeSession.category,
-            results: [],
-            mcqScore: percentage
-          }).catch(() => {});
-        });
+        saveInterviewSession({
+          date: new Date().toISOString(),
+          category: activeSession.category,
+          results: [],
+          mcqScore: percentage
+        }).catch(() => {});
 
         // Sorted leaderboard list of candidates in live exam area
         const leaderboardList = Object.values(activeSession.students || {}).sort((a, b) => {

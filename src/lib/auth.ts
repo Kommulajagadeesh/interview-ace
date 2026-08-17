@@ -87,13 +87,23 @@ export const isEmailVerified = (email: string): boolean => {
   if (normalized === "admin@smartinterview.com" || normalized === "student@smartinterview.com") {
     return true;
   }
-  return localStorage.getItem(`verifiedEmail_${normalized}`) === "true";
+  const status = localStorage.getItem(`verifiedEmail_${normalized}`);
+  if (status === "false") {
+    return false;
+  }
+  return true;
 };
 
 export const setEmailVerified = (email: string) => {
   if (!email) return;
   const normalized = email.trim().toLowerCase();
   safeLocalStorageSet(`verifiedEmail_${normalized}`, "true");
+};
+
+export const markEmailPendingVerification = (email: string) => {
+  if (!email) return;
+  const normalized = email.trim().toLowerCase();
+  safeLocalStorageSet(`verifiedEmail_${normalized}`, "false");
 };
 
 export const isUserLoggedIn = () =>

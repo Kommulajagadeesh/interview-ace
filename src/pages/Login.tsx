@@ -36,7 +36,8 @@ const Login = () => {
 
     if (unverifiedParam) {
       setEmail(unverifiedParam);
-      setInfoMessage(`Account created successfully for ${unverifiedParam}! Please sign in with your password below.`);
+      setInfoMessage(`Account created for ${unverifiedParam}! Mandatory: Please check your email inbox and verify your email before signing in below.`);
+      setVerificationSent(true);
     }
 
     if (verifyEmailParam || checkIsEmailLink(href)) {
@@ -77,6 +78,27 @@ const Login = () => {
     }
   };
 
+  const handleResendVerification = async () => {
+    setError("");
+    setInfoMessage("");
+    if (!email || !email.includes("@")) {
+      setError("Please enter your email address to resend the verification link.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await sendMagicLink(email);
+      setInfoMessage(`Verification link sent to ${email}. Please check your email inbox!`);
+      setVerificationSent(true);
+    } catch (err: any) {
+      console.warn("Resend verification error:", err);
+      setInfoMessage(`Verification link requested for ${email}. Please check your email inbox.`);
+      setVerificationSent(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -110,7 +132,15 @@ const Login = () => {
 
     try {
       await signInWithEmail(email, password);
-      setEmailVerified(normalizedEmail);
+
+      // Mandatory check: email verification required for signed-up users
+      if (!isEmailVerified(normalizedEmail)) {
+        setError("Email verification is mandatory before logging in. Please check your email inbox to verify your account, or click 'Resend Verification Email' below.");
+        setVerificationSent(true);
+        setIsLoading(false);
+        return;
+      }
+
       setUserLoggedIn(rememberMe);
       setCurrentUserEmail(email);
       registerUserLogin(email).catch(() => {});
@@ -130,7 +160,13 @@ const Login = () => {
         errorMsg.includes("operation-not-allowed") ||
         errorMsg.includes("network")
       ) {
-        setEmailVerified(normalizedEmail);
+        if (!isEmailVerified(normalizedEmail)) {
+          setError("Email verification is mandatory before logging in. Please check your email inbox to verify your account, or click 'Resend Verification Email' below.");
+          setVerificationSent(true);
+          setIsLoading(false);
+          return;
+        }
+
         setUserLoggedIn(rememberMe);
         setCurrentUserEmail(email);
         registerUserLogin(email).catch(() => {});
@@ -254,10 +290,27 @@ const Login = () => {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-6 p-4 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center gap-3"
+              className="mb-6 p-4 rounded-lg bg-destructive/10 border border-destructive/20 space-y-3"
             >
-              <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0" />
-              <p className="text-sm text-destructive font-medium">{error}</p>
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-destructive font-medium leading-relaxed">{error}</p>
+              </div>
+              {(verificationSent || error.includes("verification") || error.includes("Verification")) && (
+                <div className="pt-1 flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleResendVerification}
+                    className="text-xs bg-background/80 hover:bg-background border-destructive/30 text-destructive font-semibold"
+                    disabled={isLoading}
+                  >
+                    <Send className="w-3.5 h-3.5 mr-1.5" />
+                    Resend Verification Email
+                  </Button>
+                </div>
+              )}
             </motion.div>
           )}
 

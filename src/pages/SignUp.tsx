@@ -81,6 +81,7 @@ const SignUp = () => {
       await firebaseModule.sendMagicLink(email).catch(() => {});
 
       const authModule = await import("@/lib/auth");
+      authModule.markEmailPendingVerification(email);
       authModule.registerUserLogin(email).catch(() => {});
       authModule.saveInitialProfile({
         name: formData.fullName,

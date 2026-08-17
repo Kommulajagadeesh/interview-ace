@@ -38,6 +38,7 @@ const RequireAdminAuth = () => {
 };
 
 import { ThemeProvider } from "@/components/ThemeProvider";
+import SSOHandler from "./components/SSOHandler";
 
 const App = () => (
   <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
@@ -46,27 +47,29 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter future={{ v7_relativeSplatPath: true }}>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/profile-setup" element={<ProfileSetup />} />
+          <SSOHandler>
+            <Routes>
+              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<SignUp />} />
+              <Route path="/profile-setup" element={<ProfileSetup />} />
 
-            {/* Standalone User Routes without Left Sidebar */}
-            <Route element={<RequireUserAuth />}>
-              <Route path="/home" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/interview" element={<Interview />} />
-              <Route path="/results" element={<Results />} />
-              <Route path="/exam-area" element={<ExamArea />} />
-            </Route>
+              {/* Standalone User Routes without Left Sidebar */}
+              <Route element={<RequireUserAuth />}>
+                <Route path="/home" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/interview" element={<Interview />} />
+                <Route path="/results" element={<Results />} />
+                <Route path="/exam-area" element={<ExamArea />} />
+              </Route>
 
-            <Route element={<RequireAdminAuth />}>
-              <Route path="/admin" element={<AdminDashboard />} />
-            </Route>
+              <Route element={<RequireAdminAuth />}>
+                <Route path="/admin" element={<AdminDashboard />} />
+              </Route>
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </SSOHandler>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

@@ -191,6 +191,48 @@ const ProfileSetup = () => {
     }
   }, [email]);
 
+  const extractTextFromPDF = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (typeof window !== "undefined" && !(window as any).pdfjsLib) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js";
+        script.onload = () => {
+          (window as any).pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+          readPDFData(file).then(resolve).catch(reject);
+        };
+        script.onerror = () => reject(new Error("Failed to load PDF parser from CDN"));
+        document.body.appendChild(script);
+      } else {
+        readPDFData(file).then(resolve).catch(reject);
+      }
+    });
+  };
+
+  const readPDFData = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const typedarray = new Uint8Array(reader.result as ArrayBuffer);
+          const pdfjsLib = (window as any).pdfjsLib;
+          const pdf = await pdfjsLib.getDocument(typedarray).promise;
+          let fullText = "";
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map((item: any) => item.str).join(" ");
+            fullText += pageText + "\n";
+          }
+          resolve(fullText);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
   const handleResumeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -213,8 +255,22 @@ const ProfileSetup = () => {
         toast.success("Resume text loaded successfully!");
       };
       reader.readAsText(file);
+    } else if (ext === "pdf") {
+      const loadingToast = toast.loading("Parsing resume PDF file...");
+      extractTextFromPDF(file).then((parsedText) => {
+        setPersonalDetails(prev => ({
+          ...prev,
+          resumeText: parsedText || prev.resumeText
+        }));
+        toast.dismiss(loadingToast);
+        toast.success("Resume PDF parsed successfully!");
+      }).catch((err) => {
+        console.warn("PDF resume parse warning:", err);
+        toast.dismiss(loadingToast);
+        toast.info(`Uploaded "${file.name}". You can also paste your resume details below.`);
+      });
     } else {
-      toast.info(`Uploaded "${file.name}". Since it is a binary file, please paste your resume details below.`);
+      toast.info(`Uploaded "${file.name}". You can paste your resume details below.`);
     }
   };
 

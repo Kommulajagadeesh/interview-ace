@@ -25,6 +25,7 @@ import VoiceInterviewAssistant from "@/components/VoiceInterviewAssistant";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { getInterviewResultsKey, getUserProfile, saveInterviewSession } from "@/lib/auth";
+import { getSSOSession, logInterviewActivity } from "@/lib/sso";
 import { toast } from "sonner";
 import FaceRecognition from "@/components/FaceRecognition";
 import { saveVideoRecording } from "@/lib/indexedDb";
@@ -429,6 +430,18 @@ const Interview = () => {
     };
 
     void saveInterviewSession(session);
+
+    const ssoUser = getSSOSession();
+    const userProfile = getUserProfile();
+    const studentEmail = ssoUser?.email || userProfile?.email || "";
+    const studentName = ssoUser?.fullName || userProfile?.name || "Student";
+    const studentUid = ssoUser?.uid || "";
+
+    void logInterviewActivity(
+      { uid: studentUid, fullName: studentName, email: studentEmail },
+      "Completed Mock Technical Interview",
+      `Achieved score of ${Math.round(avgFinalScore)}% in ${category || "mixed"} track with ${validResults.length} questions answered.`
+    );
 
     // Navigate to Results page immediately
     const resultsState = {
